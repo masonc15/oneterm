@@ -57,6 +57,29 @@
   .badge:empty { display: none; }
   .tabs-note { font-size: 12.5px; color: var(--ink-3); margin-top: 6px; text-align: right; }
   .tabs-note:empty { display: none; }
+  .stash-box { position: relative; }
+  .pop {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 10; width: 320px;
+    background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(28, 29, 31, .12), 0 2px 6px rgba(28, 29, 31, .06);
+    padding: 12px 14px 10px; font-size: 13.5px; display: none;
+  }
+  .pop.show { display: block; }
+  .pop h3 { margin: 0 0 6px; font: 600 11px/1.2 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+  .pop h3 + ul { margin-bottom: 12px; }
+  .pop ul { list-style: none; margin: 0; padding: 0; }
+  .pop li { display: flex; align-items: center; gap: 8px; padding: 3px 0; min-width: 0; }
+  .pop li span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pop .k { flex: none; width: 20px; height: 18px; border-radius: 4px; display: grid; place-items: center;
+    font: 500 11px/1 var(--mono); background: #efeee9; color: var(--ink-2); }
+  .pop .k.pi { background: var(--accent-soft); color: var(--accent); font: 700 12px/1 var(--display); }
+  .pop .reason { margin: 2px 0 2px; color: var(--warn); font-weight: 500; }
+  .pop .reason + ul li { padding-left: 4px; color: var(--ink-2); }
+  .pop .reason + ul li::before { content: "·"; color: var(--ink-3); }
+  .pop .fix { color: var(--ink-3); font-size: 12.5px; margin: 0 0 8px 4px; }
+  .pop .fix code { font: 12px var(--mono); background: #ecebe6; padding: 0 4px; border-radius: 3px; }
+  .pop > :last-child { margin-bottom: 0; }
+  .tabs-note { cursor: default; }
 
   .group { margin-top: 30px; }
   .group-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 0 2px 8px; }
@@ -143,12 +166,13 @@
       </div>
     </div>
     <div class="actions">
-      <div>
+      <div class="stash-box" id="stash-box">
         <div style="display:flex; gap:8px">
           <button class="btn" id="stash-others" title="Stash every Ghostty tab except the one in front">Stash other tabs <span class="badge"></span></button>
           <button class="btn primary" id="stash-all" title="Stash every Ghostty tab">Stash all tabs <span class="badge"></span></button>
         </div>
         <div class="tabs-note" id="tabs-note"></div>
+        <div class="pop" id="pop" role="tooltip"></div>
       </div>
     </div>
   </header>
@@ -263,6 +287,49 @@ function groupBlock(g) {
   );
 }
 
+let lastTabs = null;
+let popFor = null;
+const FIX = {
+  "pi needs /reload-all": ["Started before oneterm was installed.", "Run /reload-all in any pi tab."],
+};
+
+function showPop(which) {
+  const pop = document.getElementById("pop");
+  const c = lastTabs?.[which];
+  popFor = which;
+  if (!c) return pop.classList.remove("show");
+  const nodes = [];
+  if (c.stash.length) {
+    nodes.push(el("h3", {}, `Will be stashed · ${c.stash.length}`),
+      el("ul", {}, c.stash.map((t) => el("li", {}, el("span", { class: `k ${t.kind}` }, KIND[t.kind] || "?"), el("span", { title: t.title }, t.title)))));
+  } else {
+    nodes.push(el("h3", {}, "Nothing to stash"));
+  }
+  if (c.kept.length) {
+    nodes.push(el("h3", {}, `Stays open · ${c.kept.length}`));
+    const byReason = new Map();
+    for (const k of c.kept) byReason.set(k.reason, [...(byReason.get(k.reason) || []), k.title]);
+    for (const [reason, titles] of byReason) {
+      const fix = FIX[reason];
+      const label = reason.startsWith("running ") ? `Running ${reason.slice(8)}` : fix ? "pi without oneterm" : reason;
+      nodes.push(el("div", { class: "reason" }, label));
+      nodes.push(el("ul", {}, titles.map((t) => el("li", {}, el("span", { title: t }, t)))));
+      if (fix) {
+        const [why, how] = fix;
+        const cmd = how.match(/\/[\w-]+/)?.[0];
+        nodes.push(el("p", { class: "fix" }, `${why} `, cmd ? [how.split(cmd)[0], el("code", {}, cmd), how.split(cmd)[1]] : how));
+      }
+    }
+  }
+  pop.replaceChildren(...nodes);
+  pop.classList.add("show");
+}
+
+function hidePop() {
+  popFor = null;
+  document.getElementById("pop").classList.remove("show");
+}
+
 function renderMac(mac, tabs) {
   const node = document.getElementById("mac");
   node.className = `mac${mac.online ? " on" : ""}`;
@@ -273,11 +340,10 @@ function renderMac(mac, tabs) {
     const c = mac.online ? counts[id] : null;
     btn.querySelector(".badge").textContent = c ? String(c.tabs) : "";
     btn.disabled = !mac.online || btn.dataset.busy === "1" || (c && c.tabs === 0);
-    btn.title = !mac.online ? "The Mac is offline"
-      : !c ? btn.dataset.title
-      : c.tabs === 0 ? "Nothing to stash"
-      : `${plural(c.tabs, "tab")} would be stashed${c.kept.length ? `; ${c.kept.length} kept open: ${c.kept.map((k) => `${k.title} (${k.reason})`).join(", ")}` : ""}`;
+    btn.title = !mac.online ? "The Mac is offline" : !c ? btn.dataset.title : "";
   }
+  lastTabs = mac.online ? tabs : null;
+  if (popFor) showPop(popFor);
   const kept = mac.online && tabs ? tabs.all.kept.length : 0;
   document.getElementById("tabs-note").textContent = mac.online && tabs
     ? `${plural(tabs.open, "tab")} open in Ghostty${kept ? ` · ${kept} can't be stashed` : ""}`
@@ -339,10 +405,19 @@ for (const [id, scope] of [["stash-all", "all"], ["stash-others", "others"]]) {
     refresh(true);
   });
 }
-for (const id of ["stash-all", "stash-others"]) {
+for (const [id, which] of [["stash-all", "all"], ["stash-others", "others"]]) {
   const btn = document.getElementById(id);
   btn.dataset.title = btn.title;
+  btn.setAttribute("aria-describedby", "pop");
+  btn.addEventListener("mouseenter", () => showPop(which));
+  btn.addEventListener("focus", () => showPop(which));
+  btn.addEventListener("blur", hidePop);
+  btn.addEventListener("click", hidePop);
 }
+// Over the gap or the note, keep showing whichever popover is open; on touch, tap the note.
+document.getElementById("stash-box").addEventListener("mouseleave", hidePop);
+document.getElementById("tabs-note").addEventListener("click", () => (popFor ? hidePop() : showPop("all")));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") hidePop(); });
 
 refresh(true);
 setInterval(() => { if (!document.hidden) refresh(false); }, 2000);
