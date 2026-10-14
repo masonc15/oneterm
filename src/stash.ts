@@ -39,6 +39,8 @@ export interface StashResult {
 	stashed: string[];
 	pending: string[];
 	skipped: { title: string; reason: string }[];
+	/** Tabs that were (or, in a dry run, would be) closed. */
+	tabs: number;
 }
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -47,6 +49,27 @@ function stripGlyph(title: string) {
 	// Drop status glyphs and pi's "π " prefix in front, and the shell's "·<tty>" suffix.
 	const clean = title.replace(/^[^\p{L}\p{N}~/.]+/u, "").replace(/^π\s+(-\s+)?/u, "").replace(/·\d+$/, "").trim();
 	return clean || title;
+}
+
+export interface TabCounts {
+	/** Tabs a stash would close. */
+	tabs: number;
+	/** Tabs it would leave open, and why. */
+	kept: { title: string; reason: string }[];
+}
+
+/** What "stash all" and "stash others" would do right now, from one look at Ghostty. */
+export function countTabs(): { all: TabCounts; others: TabCounts; open: number } {
+	const tabs = listTabs();
+	const procs = snapshot();
+	const live = livePis();
+	const counted = tabs.map((tab) => ({ tab, c: classifyTab(tab, procs, live, false) }));
+	const tally = (list: typeof counted): TabCounts => ({
+		tabs: list.filter((x) => !x.c.skip).length,
+		kept: list.filter((x) => x.c.skip).map((x) => ({ title: x.c.title, reason: x.c.skip! })),
+	});
+	const current = tabs.find((t) => t.windowIndex === 0 && t.selected);
+	return { all: tally(counted), others: tally(counted.filter((x) => x.tab !== current)), open: tabs.length };
 }
 
 /** The tab holding the tty of `pid` (or its nearest ancestor with a tty). */
@@ -66,51 +89,65 @@ function pickTabs(tabs: Tab[], opts: StashOptions, procs: ReturnType<typeof snap
 	return opts.scope === "this" ? [current] : tabs.filter((t) => t.id !== current.id);
 }
 
+interface Classified {
+	title: string;
+	tabItems: Item[];
+	/** Why the tab stays open, if it does. */
+	skip: string | null;
+}
+
+/** Turn one tab's terminals into stash items, or say why the tab has to stay open. */
+function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: ReturnType<typeof livePis>, force: boolean): Classified {
+	const title = stripGlyph(tab.name);
+	const tabItems: Item[] = [];
+	let skip: string | null = null;
+	for (const term of tab.terminals) {
+		const fg = foreground(term.tty, procs, live);
+		const base = { id: newId("i"), title, cwd: term.cwd, tabKey: tab.id, terminalId: term.id };
+		if (fg.kind === "shell") tabItems.push({ ...base, kind: "shell", status: "stashed", title: displayCwd(term.cwd) });
+		else if (fg.kind === "ssh") tabItems.push({ ...base, kind: "ssh", status: "stashed", command: fg.command });
+		else if (fg.kind === "pi") {
+			tabItems.push({
+				...base,
+				kind: "pi",
+				status: "pending",
+				cwd: fg.live.cwd,
+				title: stripGlyph(fg.live.name || title),
+				name: fg.live.name ?? undefined,
+				sessionId: fg.live.sessionId,
+				sessionFile: fg.live.sessionFile ?? undefined,
+				pid: fg.pid,
+			});
+		} else if (fg.kind === "pi-unregistered") {
+			skip = "pi started before oneterm was installed (run /reload-all)";
+		} else if (force) {
+			tabItems.push({ ...base, kind: "command", status: "stashed", command: fg.command });
+		} else {
+			skip = `running ${fg.command.split(/\s+/)[0]}`;
+		}
+	}
+	return { title, tabItems, skip };
+}
+
 export function stash(opts: StashOptions): StashResult {
 	ensureDirs();
 	const tabs = listTabs();
 	const procs = snapshot();
 	const live = livePis();
 	const chosen = pickTabs(tabs, opts, procs);
-	const result: StashResult = { groupId: null, stashed: [], pending: [], skipped: [] };
+	const result: StashResult = { groupId: null, stashed: [], pending: [], skipped: [], tabs: 0 };
 
 	const items: Item[] = [];
 	const closeNow: string[] = [];
 	const requests: { pid: number; item: Item }[] = [];
 
 	for (const tab of chosen) {
-		const title = stripGlyph(tab.name);
-		const tabItems: Item[] = [];
-		let skip: string | null = null;
-		for (const term of tab.terminals) {
-			const fg = foreground(term.tty, procs, live);
-			const base = { id: newId("i"), title, cwd: term.cwd, tabKey: tab.id, terminalId: term.id };
-			if (fg.kind === "shell") tabItems.push({ ...base, kind: "shell", status: "stashed", title: displayCwd(term.cwd) });
-			else if (fg.kind === "ssh") tabItems.push({ ...base, kind: "ssh", status: "stashed", command: fg.command });
-			else if (fg.kind === "pi") {
-				tabItems.push({
-					...base,
-					kind: "pi",
-					status: "pending",
-					cwd: fg.live.cwd,
-					title: stripGlyph(fg.live.name || title),
-					name: fg.live.name ?? undefined,
-					sessionId: fg.live.sessionId,
-					sessionFile: fg.live.sessionFile ?? undefined,
-					pid: fg.pid,
-				});
-			} else if (fg.kind === "pi-unregistered") {
-				skip = "pi started before oneterm was installed (run /reload-all)";
-			} else if (opts.force) {
-				tabItems.push({ ...base, kind: "command", status: "stashed", command: fg.command });
-			} else {
-				skip = `running ${fg.command.split(/\s+/)[0]}`;
-			}
-		}
+		const { title, tabItems, skip } = classifyTab(tab, procs, live, Boolean(opts.force));
 		if (skip) {
 			result.skipped.push({ title, reason: skip });
 			continue;
 		}
+		result.tabs++;
 		for (const item of tabItems) {
 			items.push(item);
 			if (item.status === "pending") {
