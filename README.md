@@ -7,7 +7,7 @@
 
 <p align="center"><strong>OneTab for Ghostty tabs and their agent sessions.</strong></p>
 
-One command saves Ghostty tabs and their pi, Claude Code, or Codex sessions to a list and closes the tabs. Later you reopen them one at a time instead of facing the whole pile again. Sessions on devbox work too.
+One command saves Ghostty tabs and their pi, Claude Code, or Codex sessions to a list and closes the tabs. Later you reopen them one at a time instead of facing the whole pile again. Sessions on remote machines over SSH work too.
 
 <p align="center">
   <img src=".github/assets/screenshot.png" alt="The oneterm page: stashed terminals grouped by when they were stashed, with restore and delete links" width="760">
