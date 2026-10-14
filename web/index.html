@@ -50,6 +50,13 @@
   .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
   .btn.primary:hover { background: #33353a; }
   .btn[disabled] { opacity: .5; cursor: default; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; }
+  .badge { min-width: 22px; height: 20px; padding: 0 6px; border-radius: 99px; display: inline-grid; place-items: center;
+    font: 600 12px/1 var(--sans); background: #ecebe6; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .btn.primary .badge { background: rgba(255,255,255,.18); color: #fff; }
+  .badge:empty { display: none; }
+  .tabs-note { font-size: 12.5px; color: var(--ink-3); margin-top: 6px; text-align: right; }
+  .tabs-note:empty { display: none; }
 
   .group { margin-top: 30px; }
   .group-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 0 2px 8px; }
@@ -136,8 +143,13 @@
       </div>
     </div>
     <div class="actions">
-      <button class="btn" id="stash-others" title="Stash every Ghostty tab except the one in front">Stash other tabs</button>
-      <button class="btn primary" id="stash-all" title="Stash every Ghostty tab">Stash all tabs</button>
+      <div>
+        <div style="display:flex; gap:8px">
+          <button class="btn" id="stash-others" title="Stash every Ghostty tab except the one in front">Stash other tabs <span class="badge"></span></button>
+          <button class="btn primary" id="stash-all" title="Stash every Ghostty tab">Stash all tabs <span class="badge"></span></button>
+        </div>
+        <div class="tabs-note" id="tabs-note"></div>
+      </div>
     </div>
   </header>
   <main id="list"></main>
@@ -251,19 +263,29 @@ function groupBlock(g) {
   );
 }
 
-function renderMac(mac) {
+function renderMac(mac, tabs) {
   const node = document.getElementById("mac");
   node.className = `mac${mac.online ? " on" : ""}`;
   node.textContent = mac.online ? "Mac online" : mac.seenAt ? `Mac offline · seen ${ago(new Date(mac.seenAt).toISOString())}` : "Mac never connected";
+  const counts = { "stash-all": tabs?.all, "stash-others": tabs?.others };
   for (const id of ["stash-all", "stash-others"]) {
     const btn = document.getElementById(id);
-    btn.disabled = !mac.online || btn.dataset.busy === "1";
-    btn.title = mac.online ? btn.dataset.title : "The Mac is offline";
+    const c = mac.online ? counts[id] : null;
+    btn.querySelector(".badge").textContent = c ? String(c.tabs) : "";
+    btn.disabled = !mac.online || btn.dataset.busy === "1" || (c && c.tabs === 0);
+    btn.title = !mac.online ? "The Mac is offline"
+      : !c ? btn.dataset.title
+      : c.tabs === 0 ? "Nothing to stash"
+      : `${plural(c.tabs, "tab")} would be stashed${c.kept.length ? `; ${c.kept.length} kept open: ${c.kept.map((k) => `${k.title} (${k.reason})`).join(", ")}` : ""}`;
   }
+  const kept = mac.online && tabs ? tabs.all.kept.length : 0;
+  document.getElementById("tabs-note").textContent = mac.online && tabs
+    ? `${plural(tabs.open, "tab")} open in Ghostty${kept ? ` · ${kept} can't be stashed` : ""}`
+    : "";
 }
 
 function render(state) {
-  renderMac(state.mac);
+  renderMac(state.mac, state.tabs);
   const total = state.groups.reduce((n, g) => n + g.items.length, 0);
   document.getElementById("total").textContent = total ? `${plural(total, "terminal")} in ${plural(state.groups.length, "group")}` : "Nothing stashed";
   document.title = total ? `oneterm (${total})` : "oneterm";
