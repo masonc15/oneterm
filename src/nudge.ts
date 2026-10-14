@@ -11,13 +11,13 @@ import { listTabs } from "./ghostty.ts";
 import { stash } from "./stash.ts";
 import { config, logHistory } from "./store.ts";
 
-const NOTIFIER = "/opt/homebrew/bin/terminal-notifier";
+const NOTIFIER = ["/opt/homebrew/bin/terminal-notifier", "/usr/local/bin/terminal-notifier"].find((p) => existsSync(p)) ?? "";
 const CHECK_MS = 20_000;
 // macOS shows a lone action as a button; two or more collapse into an "Options" menu.
 const STASH_BUTTON = "Stash all tabs";
 
 export function startNudge(hubUrl: string | null, log: (m: string) => void) {
-	if (!existsSync(NOTIFIER)) return log("tab-cap nudge off: terminal-notifier not found");
+	if (!NOTIFIER) return log("tab-cap nudge off: terminal-notifier not found");
 	let lastNudge = 0;
 	let showing: ChildProcess | null = null;
 
