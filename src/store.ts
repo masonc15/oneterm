@@ -46,6 +46,25 @@ export interface Stash {
 	groups: Group[];
 }
 
+export interface Config {
+	/** Nudge when more than this many Ghostty tabs are open; 0 turns the nudge off. */
+	tabCap: number;
+	/** While still over the cap, nudge again after this many minutes. */
+	nudgeRepeatMinutes: number;
+}
+
+const DEFAULT_CONFIG: Config = { tabCap: 6, nudgeRepeatMinutes: 30 };
+
+/** Settings from ~/.oneterm/config.json, with defaults for anything missing. */
+export function config(): Config {
+	const raw = readJson<Partial<Config>>(join(HOME, "config.json")) ?? {};
+	const num = (v: unknown, fallback: number) => (typeof v === "number" && v >= 0 ? v : fallback);
+	return {
+		tabCap: num(raw.tabCap, DEFAULT_CONFIG.tabCap),
+		nudgeRepeatMinutes: num(raw.nudgeRepeatMinutes, DEFAULT_CONFIG.nudgeRepeatMinutes),
+	};
+}
+
 export function ensureDirs() {
 	for (const dir of [HOME, LIVE_DIR, REQUEST_DIR, ACK_DIR]) mkdirSync(dir, { recursive: true });
 }
