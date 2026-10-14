@@ -1,10 +1,12 @@
 #!/bin/sh
-# Push the hub to devbox and rebuild it. devbox:~/docker/oneterm/data and .env are never touched.
+# Copy the hub to a server over ssh and rebuild it: ./deploy-hub.sh HOST
+# It never touches ~/docker/oneterm/data or .env on the server.
 set -e
+host=${1:?usage: ./deploy-hub.sh HOST}
 cd "$(dirname "$0")"
-ssh devbox 'mkdir -p ~/docker/oneterm/data ~/docker/oneterm/src ~/docker/oneterm/web ~/docker/oneterm/hub'
-rsync -a src/hub.ts devbox:docker/oneterm/src/
-rsync -a web/index.html devbox:docker/oneterm/web/
-rsync -a hub/Dockerfile devbox:docker/oneterm/hub/
-rsync -a hub/docker-compose.yml devbox:docker/oneterm/
-ssh devbox 'cd ~/docker/oneterm && docker compose up -d --build'
+ssh "$host" 'mkdir -p ~/docker/oneterm/data ~/docker/oneterm/src ~/docker/oneterm/web ~/docker/oneterm/hub'
+rsync -a src/hub.ts "$host":docker/oneterm/src/
+rsync -a web/index.html "$host":docker/oneterm/web/
+rsync -a hub/Dockerfile "$host":docker/oneterm/hub/
+rsync -a hub/docker-compose.yml "$host":docker/oneterm/
+ssh "$host" 'cd ~/docker/oneterm && docker compose up -d --build'

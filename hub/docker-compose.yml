@@ -10,9 +10,8 @@ services:
       - 7317:7317
     volumes:
       - ./data:/data
-    environment:
-      ONETERM_HOSTS: 100.64.0.10:7317,devbox:7317,devbox.local:7317,devbox.example.ts.net:7317,192.168.1.10:7317,localhost:7317,127.0.0.1:7317
-    # ONETERM_TOKEN: shared with the Mac's ~/.oneterm/hub.json
+    # .env sets ONETERM_TOKEN, the same token as the Mac's ~/.oneterm/hub.json,
+    # and ONETERM_HOSTS, every host:port you'll open the page with.
     env_file:
       - path: .env
         required: true
