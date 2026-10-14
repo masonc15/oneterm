@@ -14,7 +14,7 @@ import { config, logHistory } from "./store.ts";
 const NOTIFIER = "/opt/homebrew/bin/terminal-notifier";
 const CHECK_MS = 20_000;
 // macOS shows a lone action as a button; two or more collapse into an "Options" menu.
-const STASH_BUTTON = "Stash other tabs";
+const STASH_BUTTON = "Stash all tabs";
 
 export function startNudge(hubUrl: string | null, log: (m: string) => void) {
 	if (!existsSync(NOTIFIER)) return log("tab-cap nudge off: terminal-notifier not found");
@@ -42,7 +42,7 @@ export function startNudge(hubUrl: string | null, log: (m: string) => void) {
 			showing = null;
 			const choice = out.trim();
 			if (choice === STASH_BUTTON) {
-				const r = stash({ scope: "others" });
+				const r = stash({ scope: "all" });
 				log(`nudge: stashed ${r.tabs} tabs`);
 			} else if (choice === "@ACTIONCLICKED") {
 				// A click on the notification itself opens the list.
