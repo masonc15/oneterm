@@ -1,0 +1,5 @@
+node_modules/
+AGENTS.md
+CLAUDE.md
+AGENTS.override.md
+.DS_Store
