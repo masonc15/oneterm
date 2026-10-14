@@ -6,7 +6,7 @@
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { remove, restore } from "./restore.ts";
-import { stash } from "./stash.ts";
+import { countTabs, stash } from "./stash.ts";
 import { HOME, load, readJson } from "./store.ts";
 
 interface HubConfig {
@@ -16,7 +16,7 @@ interface HubConfig {
 
 interface Action {
 	id: string;
-	type: "restore" | "delete" | "stash";
+	type: "restore" | "delete" | "stash" | "count";
 	itemIds?: string[];
 	scope?: "all" | "others";
 }
@@ -81,6 +81,8 @@ export async function agent() {
 				return { deleted: remove(action.itemIds ?? []) };
 			case "stash":
 				return stash({ scope: action.scope === "others" ? "others" : "all" });
+			case "count":
+				return countTabs();
 		}
 	};
 
@@ -97,7 +99,7 @@ export async function agent() {
 				} catch (err) {
 					result = { error: (err as Error).message };
 				}
-				log(`${action.type} ${action.itemIds?.length ?? action.scope ?? ""}: ${JSON.stringify(result)}`);
+				if (action.type !== "count") log(`${action.type} ${action.itemIds?.length ?? action.scope ?? ""}: ${JSON.stringify(result)}`);
 				await call("/api/agent/done", { method: "POST", body: JSON.stringify({ actionId: action.id, result, groups: load().groups }) });
 			}
 		} catch (err) {

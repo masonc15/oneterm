@@ -29,10 +29,14 @@ const ONLINE_MS = 45_000;
 const CLICK_WAIT_MS = 8_000;
 /** A sent action with no reply this long is sent again. */
 const RESEND_MS = 60_000;
+/** While the page is open, ask the Mac to recount its tabs this often. */
+const COUNT_EVERY_MS = 2_000;
+/** Tab counts older than this are not shown. */
+const COUNT_FRESH_MS = 30_000;
 /** Queued restores older than this are dropped instead of opening tabs out of nowhere. */
 const RESTORE_TTL_MS = 24 * 3600_000;
 
-type ActionType = "restore" | "delete" | "stash";
+type ActionType = "restore" | "delete" | "stash" | "count";
 
 interface Action {
 	id: string;
@@ -63,6 +67,8 @@ interface HubState {
 	syncedAt: number | null;
 	agentSeenAt: number | null;
 	actions: Action[];
+	/** The Mac's last count of its open tabs (not persisted). */
+	tabs?: { counts: unknown; at: number };
 }
 
 let state: HubState = { groups: [], syncedAt: null, agentSeenAt: null, actions: [] };
@@ -73,13 +79,15 @@ try {
 function save() {
 	mkdirSync(DATA, { recursive: true });
 	const tmp = `${STATE_FILE}.tmp`;
-	writeFileSync(tmp, JSON.stringify(state));
+	writeFileSync(tmp, JSON.stringify({ ...state, tabs: undefined }));
 	renameSync(tmp, STATE_FILE);
 }
 
 function newId() {
 	return `a${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
+
+let recount = false;
 
 // Anyone waiting on the queue or on one action's result.
 const queueWaiters = new Set<() => void>();
@@ -95,8 +103,8 @@ function prune() {
 	state.actions = state.actions.filter((a) => {
 		if (a.doneAt) return now - a.doneAt < 60_000;
 		if (a.type === "restore") return now - a.createdAt < RESTORE_TTL_MS;
-		// A stash only makes sense right away; never replay it later.
-		if (a.type === "stash") return now - a.createdAt < 30_000;
+		// A stash or a count only makes sense right away; never replay it later.
+		if (a.type === "stash" || a.type === "count") return now - a.createdAt < 30_000;
 		return true;
 	});
 }
@@ -115,6 +123,7 @@ function itemsOf(groupId: string) {
 
 /** The stash as the page should see it: the Mac's last copy with clicks it hasn't handled yet applied. */
 function view() {
+	const tabs = macOnline() && state.tabs && Date.now() - state.tabs.at < COUNT_FRESH_MS ? state.tabs.counts : null;
 	const deleted = new Set(pending().flatMap((a) => (a.type === "delete" ? a.itemIds ?? [] : [])));
 	const restoring = new Map<string, string>();
 	for (const a of pending()) if (a.type === "restore") for (const id of a.itemIds ?? []) restoring.set(id, a.id);
@@ -124,7 +133,7 @@ function view() {
 			items: g.items.filter((i) => !deleted.has(i.id)).map((i) => (restoring.has(i.id) ? { ...i, queuedAction: restoring.get(i.id) } : i)),
 		}))
 		.filter((g) => g.items.length);
-	return { groups, mac: { online: macOnline(), seenAt: state.agentSeenAt, syncedAt: state.syncedAt } };
+	return { groups, tabs, mac: { online: macOnline(), seenAt: state.agentSeenAt, syncedAt: state.syncedAt } };
 }
 
 function enqueue(action: Omit<Action, "id" | "createdAt">) {
@@ -225,6 +234,14 @@ async function handleAgent(req: IncomingMessage, res: ServerResponse, url: URL) 
 		if (action) {
 			action.doneAt = Date.now();
 			action.result = data.result;
+			// A count that failed (say, a tab closed mid-query) keeps the last good one.
+			if (action.type === "count") {
+				const result = data.result as { error?: string } | undefined;
+				if (result && !result.error) state.tabs = { counts: result, at: action.doneAt };
+				else if (state.tabs) state.tabs.at = action.doneAt;
+			}
+			// Tabs just opened or closed; recount on the next look.
+			else if (action.type === "stash" || action.type === "restore") recount = true;
 		}
 		setGroups(data.groups);
 		save();
@@ -236,7 +253,13 @@ async function handleAgent(req: IncomingMessage, res: ServerResponse, url: URL) 
 
 async function handlePage(req: IncomingMessage, res: ServerResponse, url: URL) {
 	if (req.method === "GET" && url.pathname === "/") return send(res, 200, readFileSync(PAGE, "utf8"), "text/html; charset=utf-8");
-	if (req.method === "GET" && url.pathname === "/api/state") return send(res, 200, view());
+	if (req.method === "GET" && url.pathname === "/api/state") {
+		// Someone is looking: have the Mac recount its tabs for the stash buttons.
+		const stale = recount || !state.tabs || Date.now() - state.tabs.at > COUNT_EVERY_MS;
+		recount = false;
+		if (macOnline() && stale && !pending().some((a) => a.type === "count")) enqueue({ type: "count" });
+		return send(res, 200, view());
+	}
 	if (req.method !== "POST") return send(res, 404, { error: "not found" });
 
 	// Any website can aim requests at this server; writes need a custom header a form can't send.
