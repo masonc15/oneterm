@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-<p align="center"><strong>OneTab for Ghostty tabs and their agent sessions.</strong></p>
+<p align="center"><strong>OneTab for Ghostty.</strong></p>
 
 One command saves your Ghostty tabs to a list and closes them, along with any pi, Claude Code, or Codex sessions running inside. You reopen them later one at a time instead of facing the whole pile again. Sessions on other machines over SSH work too.
 
