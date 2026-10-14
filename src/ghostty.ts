@@ -36,18 +36,17 @@ export function isRunning(): boolean {
 
 export function listTabs(): Tab[] {
 	if (!isRunning()) return [];
+	// One bulk Apple Event per property instead of one per terminal: about 0.3 s instead of 1.5 s.
 	return jxa<Tab[]>(`
 function run() {
-	const g = Application("Ghostty");
+	const W = Application("Ghostty").windows;
+	const wid = W.id(), tid = W.tabs.id(), name = W.tabs.name(), sel = W.tabs.selected();
+	const xid = W.tabs.terminals.id(), tty = W.tabs.terminals.tty(), cwd = W.tabs.terminals.workingDirectory();
 	const out = [];
-	g.windows().forEach((w, wi) => {
-		for (const t of w.tabs()) {
-			out.push({
-				windowId: w.id(), windowIndex: wi, id: t.id(), name: t.name(), selected: t.selected(),
-				terminals: t.terminals().map((x) => ({ id: x.id(), tty: x.tty(), cwd: x.workingDirectory() })),
-			});
-		}
-	});
+	wid.forEach((w, wi) => tid[wi].forEach((t, ti) => out.push({
+		windowId: w, windowIndex: wi, id: t, name: name[wi][ti], selected: sel[wi][ti],
+		terminals: xid[wi][ti].map((x, k) => ({ id: x, tty: tty[wi][ti][k], cwd: cwd[wi][ti][k] })),
+	})));
 	return JSON.stringify(out);
 }`);
 }
