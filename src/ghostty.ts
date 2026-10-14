@@ -37,19 +37,32 @@ export function isRunning(): boolean {
 export function listTabs(): Tab[] {
 	if (!isRunning()) return [];
 	// One bulk Apple Event per property instead of one per terminal: about 0.3 s instead of 1.5 s.
-	return jxa<Tab[]>(`
+	return jxa<Tab[]>(LIST_TABS_SCRIPT);
+}
+
+// Separate for a VM regression test: Apple Events can see a tab close between property reads.
+export const LIST_TABS_SCRIPT = `
 function run() {
 	const W = Application("Ghostty").windows;
-	const wid = W.id(), tid = W.tabs.id(), name = W.tabs.name(), sel = W.tabs.selected();
-	const xid = W.tabs.terminals.id(), tty = W.tabs.terminals.tty(), cwd = W.tabs.terminals.workingDirectory();
-	const out = [];
-	wid.forEach((w, wi) => tid[wi].forEach((t, ti) => out.push({
-		windowId: w, windowIndex: wi, id: t, name: name[wi][ti], selected: sel[wi][ti],
-		terminals: xid[wi][ti].map((x, k) => ({ id: x, tty: tty[wi][ti][k], cwd: cwd[wi][ti][k] })),
-	})));
-	return JSON.stringify(out);
-}`);
-}
+	for (let attempt = 0; attempt < 3; attempt++) {
+		const wid = W.id(), tid = W.tabs.id(), xid = W.tabs.terminals.id();
+		const name = W.tabs.name(), sel = W.tabs.selected();
+		const tty = W.tabs.terminals.tty(), cwd = W.tabs.terminals.workingDirectory();
+		if (JSON.stringify([wid, tid, xid]) !== JSON.stringify([W.id(), W.tabs.id(), W.tabs.terminals.id()])) continue;
+		const same = (a, b) => Array.isArray(a) && Array.isArray(b) && a.length === b.length;
+		if (!same(wid, tid) || !same(tid, xid) || !same(tid, name) || !same(tid, sel) || !same(tid, tty) || !same(tid, cwd)) continue;
+		const complete = tid.every((ts, wi) => same(ts, xid[wi]) && same(ts, name[wi]) && same(ts, sel[wi]) && same(ts, tty[wi]) && same(ts, cwd[wi]) &&
+			ts.every((_, ti) => same(xid[wi][ti], tty[wi][ti]) && same(xid[wi][ti], cwd[wi][ti])));
+		if (!complete) continue;
+		const out = [];
+		wid.forEach((w, wi) => tid[wi].forEach((t, ti) => out.push({
+			windowId: w, windowIndex: wi, id: t, name: name[wi][ti], selected: sel[wi][ti],
+			terminals: xid[wi][ti].map((x, k) => ({ id: x, tty: tty[wi][ti][k], cwd: cwd[wi][ti][k] })),
+		})));
+		return JSON.stringify(out);
+	}
+	throw new Error("Ghostty tabs changed during inspection; retry the stash");
+}`;
 
 /** Close terminals by id. A tab closes with its last terminal. Returns ids that no longer exist. */
 export function closeTerminals(ids: string[]): string[] {
