@@ -80,6 +80,12 @@
   .pop .fix code { font: 12px var(--mono); background: #ecebe6; padding: 0 4px; border-radius: 3px; }
   .pop > :last-child { margin-bottom: 0; }
   .tabs-note { cursor: default; }
+  li.item[draggable="true"] { cursor: grab; }
+  li.item.dragging { opacity: .4; }
+  li.item.drop-before { box-shadow: inset 0 3px 0 -1px var(--accent); }
+  ul.items.drop-end > li.item:last-child { box-shadow: inset 0 -3px 0 -1px var(--accent); }
+  ul.items.drop-end:empty, section.group.drop-target ul.items { outline: 2px dashed var(--accent); outline-offset: 2px; }
+  body.drag-active button.title { pointer-events: none; }
   .tabs-note.over { color: var(--warn); font-weight: 500; }
 
   .group { margin-top: 30px; }
@@ -178,7 +184,7 @@
     </div>
   </header>
   <main id="list"></main>
-  <p class="hint">Click a title to reopen it in Ghostty on the Mac; it leaves this list. pi sessions resume with <code>pi --session</code>. Clicks made while the Mac is offline wait until it is back.</p>
+  <p class="hint">Click a title to reopen it in Ghostty on the Mac; it leaves this list. Drag an entry to move it to another group or reorder it. pi sessions resume with <code>pi --session</code>. Clicks made while the Mac is offline wait until it is back.</p>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -260,7 +266,16 @@ function itemRow(item, prev) {
     : item.restoreCommand && item.kind !== "pi"
       ? el("div", { class: "line2 cmd" }, `$ ${item.restoreCommand}`)
       : null;
-  return el("li", { class: `item${prev && prev.tabKey === item.tabKey ? " split" : ""}` },
+  return el("li", { class: `item${prev && prev.tabKey === item.tabKey ? " split" : ""}`, "data-id": item.id,
+      draggable: pending ? null : "true",
+      ondragstart: (e) => {
+        drag = { id: item.id };
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", item.id);
+        e.currentTarget.classList.add("dragging");
+        document.body.classList.add("drag-active");
+      },
+      ondragend: (e) => { e.currentTarget.classList.remove("dragging"); endDrag(); } },
     el("span", { class: `kind ${item.kind}`, title: item.kind }, KIND[item.kind] || "?"),
     el("div", { class: "line1" }, title, item.title === item.cwdShort ? null : el("span", { class: "cwd", title: item.cwd }, item.cwdShort), chips),
     second,
@@ -269,10 +284,60 @@ function itemRow(item, prev) {
   );
 }
 
+// The entry being dragged, if any. Polling pauses while it is set so the list isn't rebuilt mid-drag.
+let drag = null;
+
+function clearDropMarks() {
+  for (const n of document.querySelectorAll(".drop-before, .drop-end, .drop-target"))
+    n.classList.remove("drop-before", "drop-end", "drop-target");
+}
+
+function endDrag() {
+  drag = null;
+  clearDropMarks();
+  document.body.classList.remove("drag-active");
+}
+
+/** Where a drop at this point would land: before an entry, or at the end of the list. */
+function dropSpot(section, y) {
+  const rows = [...section.querySelectorAll("li.item")].filter((li) => li.dataset.id !== drag.id);
+  const before = rows.find((li) => { const r = li.getBoundingClientRect(); return y < r.top + r.height / 2; });
+  return { before, list: section.querySelector("ul.items") };
+}
+
+function dropHandlers(groupId) {
+  return {
+    ondragover: (e) => {
+      if (!drag) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const section = e.currentTarget;
+      const { before, list } = dropSpot(section, e.clientY);
+      clearDropMarks();
+      section.classList.add("drop-target");
+      if (before) before.classList.add("drop-before");
+      else list.classList.add("drop-end");
+    },
+    ondragleave: (e) => {
+      if (!e.currentTarget.contains(e.relatedTarget)) clearDropMarks();
+    },
+    ondrop: (e) => {
+      if (!drag) return;
+      e.preventDefault();
+      const { before } = dropSpot(e.currentTarget, e.clientY);
+      const id = drag.id;
+      const title = document.querySelector(`li.item[data-id="${CSS.escape(id)}"] .title`)?.textContent || "entry";
+      endDrag();
+      act("/api/move", { itemIds: [id], groupId, beforeId: before?.dataset.id },
+        (r) => r.moved ? `Moved ${title}${r.queued ? " (syncs when the Mac is back)" : ""}` : "Nothing moved");
+    },
+  };
+}
+
 function groupBlock(g) {
   const created = new Date(g.createdAt);
   const busy = g.items.some((i) => i.status === "pending");
-  return el("section", { class: "group" },
+  return el("section", { class: "group", ...dropHandlers(g.id) },
     el("div", { class: "group-head" },
       el("span", { class: "count" }, plural(g.items.length, "terminal")),
       el("span", { class: "when", title: created.toLocaleString() },
@@ -382,6 +447,7 @@ function render(state) {
 }
 
 async function refresh(force) {
+  if (drag) return;
   try {
     const res = await fetch("/api/state", { cache: "no-store" });
     const text = await res.text();
