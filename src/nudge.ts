@@ -13,8 +13,8 @@ import { config, logHistory } from "./store.ts";
 
 const NOTIFIER = "/opt/homebrew/bin/terminal-notifier";
 const CHECK_MS = 20_000;
+// macOS shows a lone action as a button; two or more collapse into an "Options" menu.
 const STASH_BUTTON = "Stash other tabs";
-const OPEN_BUTTON = "Open oneterm";
 
 export function startNudge(hubUrl: string | null, log: (m: string) => void) {
 	if (!existsSync(NOTIFIER)) return log("tab-cap nudge off: terminal-notifier not found");
@@ -30,7 +30,7 @@ export function startNudge(hubUrl: string | null, log: (m: string) => void) {
 				"-subtitle", `${open} Ghostty tabs open`,
 				"-message", `Your limit is ${cap}.`,
 				"-group", "oneterm-tab-cap",
-				"-action", `${STASH_BUTTON},${OPEN_BUTTON}`,
+				"-action", STASH_BUTTON,
 				"-timeout", "600",
 			],
 			{ stdio: ["ignore", "pipe", "ignore"] },
@@ -44,7 +44,8 @@ export function startNudge(hubUrl: string | null, log: (m: string) => void) {
 			if (choice === STASH_BUTTON) {
 				const r = stash({ scope: "others" });
 				log(`nudge: stashed ${r.tabs} tabs`);
-			} else if (choice === OPEN_BUTTON || choice === "@ACTIONCLICKED") {
+			} else if (choice === "@ACTIONCLICKED") {
+				// A click on the notification itself opens the list.
 				if (hubUrl) spawn("open", [`${hubUrl}/`], { stdio: "ignore" });
 			}
 			logHistory("nudge", { open, cap, choice });
