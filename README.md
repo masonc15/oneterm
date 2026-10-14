@@ -9,8 +9,10 @@
 
 oneterm saves your [Ghostty](https://ghostty.org) tabs to a list and closes them, including any [pi](https://pi.dev), [Claude Code](https://code.claude.com/docs/en/overview), or [Codex](https://developers.openai.com/codex/cli) sessions running in them. Then you can bring them back one at a time when you actually need them, instead of staring at 15 tabs. It works for sessions on other machines over SSH too.
 
+I built this for my own setup and I'm sharing it as-is. It should work on your Mac with a little setup, but I'm not planning to support it, so fork it if you want it to work differently.
+
 <p align="center">
-  <img src=".github/assets/screenshot.png" alt="The oneterm page, with stashed terminals grouped by stash time and links to restore or delete them" width="760">
+  <img src=".github/assets/screenshot.png" alt="The oneterm page, with stashed Claude Code, Codex, and pi sessions grouped by when they were stashed" width="760">
 </p>
 
 ## How it works
@@ -47,7 +49,8 @@ You'll need macOS, Ghostty 1.3 or later, Node 22.18 or later, Python 3.9 or late
 ln -s ~/workspace/oneterm/bin/oneterm ~/.local/bin/oneterm
 pi install ~/workspace/oneterm                 # pi extension
 python3 support/agents.py --install            # Claude Code and Codex hooks
-cp launchd/com.colin.oneterm-agent.plist ~/Library/LaunchAgents/
+sed -e "s|__ONETERM__|$PWD|g" -e "s|__HOME__|$HOME|g" launchd/com.colin.oneterm-agent.plist \
+  > ~/Library/LaunchAgents/com.colin.oneterm-agent.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.colin.oneterm-agent.plist
 cp raycast/*.sh ~/raycast/script-commands/     # optional Raycast commands
 ```
@@ -56,7 +59,9 @@ The hook installer adds the [Claude Code hooks](https://code.claude.com/docs/en/
 
 For remote sessions, copy `support/agents.py` to `~/.oneterm/agents.py` on the server and run it there with `--install`. Then add the host to `remoteHosts` in `~/.oneterm/config.json` on your Mac. Right now oneterm only matches plain `ssh [-t] [-p PORT] [-l USER] [-i KEY] HOST` connections.
 
-The hub runs in Docker, and `deploy-hub.sh` copies it to your server and starts it. You'll have to change the host name in that script and the allowed hosts in `hub/docker-compose.yml`. Then make a random token and put it in two places: `~/docker/oneterm/.env` on the server as `ONETERM_TOKEN`, and `~/.oneterm/hub.json` on your Mac as `{"url": "...", "token": "..."}`.
+The hub runs in Docker, and `./deploy-hub.sh HOST` copies it to your server over ssh and starts it. Make a random token and put it in `~/.oneterm/hub.json` on your Mac as `{"url": "...", "token": "..."}`. On the server, `~/docker/oneterm/.env` needs that same token as `ONETERM_TOKEN`, plus `ONETERM_HOSTS`, which lists every `host:port` you'll open the page with, separated by commas.
+
+The page itself has no login. Anyone who can reach the hub can see your stash and stash or reopen your tabs, so only run it somewhere private, like your LAN or a [Tailscale](https://tailscale.com) network. Don't put it on the public internet.
 
 Agents you started before setting this up won't have the hooks yet, so restart them, or run `/reload-all` in pi.
 
