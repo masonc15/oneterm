@@ -80,6 +80,7 @@
   .pop .fix code { font: 12px var(--mono); background: #ecebe6; padding: 0 4px; border-radius: 3px; }
   .pop > :last-child { margin-bottom: 0; }
   .tabs-note { cursor: default; }
+  .tabs-note.over { color: var(--warn); font-weight: 500; }
 
   .group { margin-top: 30px; }
   .group-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 0 2px 8px; }
@@ -345,8 +346,11 @@ function renderMac(mac, tabs) {
   lastTabs = mac.online ? tabs : null;
   if (popFor) showPop(popFor);
   const kept = mac.online && tabs ? tabs.all.kept.length : 0;
-  document.getElementById("tabs-note").textContent = mac.online && tabs
-    ? `${plural(tabs.open, "tab")} open in Ghostty${kept ? ` · ${kept} can't be stashed` : ""}`
+  const over = mac.online && tabs && tabs.cap > 0 && tabs.open > tabs.cap;
+  const note = document.getElementById("tabs-note");
+  note.classList.toggle("over", Boolean(over));
+  note.textContent = mac.online && tabs
+    ? `${plural(tabs.open, "tab")} open in Ghostty${over ? ` (cap is ${tabs.cap})` : ""}${kept ? ` · ${kept} can't be stashed` : ""}`
     : "";
 }
 
