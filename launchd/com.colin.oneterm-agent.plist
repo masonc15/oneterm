@@ -3,12 +3,12 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.colin.oneterm-serve</string>
+    <string>com.colin.oneterm-agent</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/Users/you/workspace/oneterm/bin/oneterm</string>
-        <string>serve</string>
+        <string>agent</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -18,10 +18,10 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/Users/you/Library/Logs/oneterm-serve.log</string>
+    <string>/Users/you/Library/Logs/oneterm-agent.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/you/Library/Logs/oneterm-serve.log</string>
+    <string>/Users/you/Library/Logs/oneterm-agent.log</string>
 
     <key>WorkingDirectory</key>
     <string>/Users/you</string>
