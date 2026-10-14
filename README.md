@@ -1,6 +1,17 @@
-# oneterm
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.svg">
+    <img src=".github/assets/logo-light.svg" alt="oneterm" width="360">
+  </picture>
+</p>
 
-OneTab for Ghostty. One command saves every open Ghostty tab, including the pi session running in it, to a list and closes the tabs. Later you reopen them one at a time from that list instead of facing the whole pile again.
+<p align="center"><strong>OneTab for Ghostty tabs and the pi sessions running in them.</strong></p>
+
+One command saves every open Ghostty tab, including the pi session running in it, to a list and closes the tabs. Later you reopen them one at a time from that list instead of facing the whole pile again.
+
+<p align="center">
+  <img src=".github/assets/screenshot.png" alt="The oneterm page: stashed terminals grouped by when they were stashed, with restore and delete links" width="760">
+</p>
 
 ## How a stash works
 
