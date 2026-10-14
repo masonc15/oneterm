@@ -5,7 +5,7 @@
 # @raycast.mode compact
 # @raycast.icon 📥
 # @raycast.packageName oneterm
-# @raycast.description Save every Ghostty tab and pi session to oneterm and close them
+# @raycast.description Stash every Ghostty tab and the agents running in them
 # @raycast.author Colin Mason
 
 exec "$HOME/.local/bin/oneterm" stash --all

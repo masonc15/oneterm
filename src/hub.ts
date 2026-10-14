@@ -1,5 +1,5 @@
 /**
- * oneterm hub: the always-on copy of the stash page, run on devbox.
+ * oneterm hub: the always-on copy of the stash page, run on a server on your private network.
  *
  * The Mac stays the source of truth. Its agent (`oneterm agent`) pushes the stash here
  * whenever it changes and long-polls for actions clicked on the page. An action only

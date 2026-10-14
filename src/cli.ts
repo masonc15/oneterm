@@ -3,7 +3,7 @@ import { groupItemIds, move, remove, restore } from "./restore.ts";
 import { reap, type Scope, stash } from "./stash.ts";
 import { displayCwd, findItem, type Item, load, restoreCommand } from "./store.ts";
 
-const HELP = `oneterm: OneTab for Ghostty tabs and agent sessions
+const HELP = `oneterm: OneTab for Ghostty tabs and agents
 
   oneterm stash [--all|--others|--this] [--force] [--note TEXT] [--dry-run]
       Save tabs to the stash and close them. Busy agent sessions finish their
@@ -13,7 +13,7 @@ const HELP = `oneterm: OneTab for Ghostty tabs and agent sessions
   oneterm ls [--json]        List the stash
   oneterm rm ID...           Delete items (or groups) without restoring
   oneterm mv ID... GROUP     Move items into another group
-  oneterm agent              Sync with the hub page on devbox (run by launchd)
+  oneterm agent              Sync with the hub (launchd runs this)
   oneterm open               Open the hub page`;
 
 function flag(args: string[], name: string) {
