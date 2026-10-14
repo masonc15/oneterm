@@ -7,7 +7,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/you/workspace/oneterm/bin/oneterm</string>
+        <string>__ONETERM__/bin/oneterm</string>
         <string>agent</string>
     </array>
 
@@ -18,18 +18,18 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/Users/you/Library/Logs/oneterm-agent.log</string>
+    <string>__HOME__/Library/Logs/oneterm-agent.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/you/Library/Logs/oneterm-agent.log</string>
+    <string>__HOME__/Library/Logs/oneterm-agent.log</string>
 
     <key>WorkingDirectory</key>
-    <string>/Users/you</string>
+    <string>__HOME__</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/you/.local/bin</string>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:__HOME__/.local/bin</string>
     </dict>
 </dict>
 </plist>
