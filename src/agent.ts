@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { move, remove, restore } from "./restore.ts";
 import { startNudge } from "./nudge.ts";
 import { countTabs, stash } from "./stash.ts";
-import { HOME, load, readJson } from "./store.ts";
+import { displayCwd, HOME, load, readJson, restoreCommand } from "./store.ts";
 
 interface HubConfig {
 	url: string;
@@ -38,6 +38,14 @@ function log(message: string) {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** The stash as the page shows it: newest group first, with display paths and restore commands. */
+function pageGroups() {
+	return [...load().groups].reverse().map((g) => ({
+		...g,
+		items: g.items.map((i) => ({ ...i, cwdShort: displayCwd(i.cwd), restoreCommand: restoreCommand(i) ?? null })),
+	}));
+}
+
 export async function agent() {
 	const config = hubConfig();
 	if (!config) throw new Error(`oneterm agent: write {"url", "token"} to ${join(HOME, "hub.json")} first`);
@@ -61,7 +69,7 @@ export async function agent() {
 			mtime = statSync(STASH_FILE).mtimeMs;
 		} catch {}
 		if (mtime === pushedMtime && Date.now() - pushedAt < HEARTBEAT_MS) return;
-		await call("/api/agent/state", { method: "POST", body: JSON.stringify({ groups: load().groups }) });
+		await call("/api/agent/state", { method: "POST", body: JSON.stringify({ groups: pageGroups() }) });
 		pushedMtime = mtime;
 		pushedAt = Date.now();
 	};
@@ -106,7 +114,7 @@ export async function agent() {
 					result = { error: (err as Error).message };
 				}
 				if (action.type !== "count") log(`${action.type} ${action.itemIds?.length ?? action.scope ?? ""}: ${JSON.stringify(result)}`);
-				await call("/api/agent/done", { method: "POST", body: JSON.stringify({ actionId: action.id, result, groups: load().groups }) });
+				await call("/api/agent/done", { method: "POST", body: JSON.stringify({ actionId: action.id, result, groups: pageGroups() }) });
 			}
 		} catch (err) {
 			failures++;
