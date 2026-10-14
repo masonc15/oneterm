@@ -5,6 +5,7 @@ import { closeTerminals, listTabs, type Tab } from "./ghostty.ts";
 import { alive, foreground, livePis, snapshot } from "./procs.ts";
 import {
 	ACK_DIR,
+	config,
 	displayCwd,
 	ensureDirs,
 	type Group,
@@ -61,7 +62,7 @@ export interface TabCounts {
 }
 
 /** What "stash all" and "stash others" would do right now, from one look at Ghostty. */
-export function countTabs(): { all: TabCounts; others: TabCounts; open: number } {
+export function countTabs(): { all: TabCounts; others: TabCounts; open: number; cap: number } {
 	const tabs = listTabs();
 	const procs = snapshot();
 	const live = livePis();
@@ -79,7 +80,7 @@ export function countTabs(): { all: TabCounts; others: TabCounts; open: number }
 		kept: list.filter((x) => x.c.skip).map((x) => ({ title: x.c.title, reason: x.c.skip! })),
 	});
 	const current = tabs.find((t) => t.windowIndex === 0 && t.selected);
-	return { all: tally(counted), others: tally(counted.filter((x) => x.tab !== current)), open: tabs.length };
+	return { all: tally(counted), others: tally(counted.filter((x) => x.tab !== current)), open: tabs.length, cap: config().tabCap };
 }
 
 /** The tab holding the tty of `pid` (or its nearest ancestor with a tty). */

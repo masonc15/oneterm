@@ -6,6 +6,7 @@
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { remove, restore } from "./restore.ts";
+import { startNudge } from "./nudge.ts";
 import { countTabs, stash } from "./stash.ts";
 import { HOME, load, readJson } from "./store.ts";
 
@@ -86,6 +87,7 @@ export async function agent() {
 		}
 	};
 
+	startNudge(config.url, log);
 	log(`connected to ${config.url}`);
 	let failures = 0;
 	for (;;) {
