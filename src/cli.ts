@@ -3,8 +3,6 @@ import { groupItemIds, remove, restore } from "./restore.ts";
 import { reap, type Scope, stash } from "./stash.ts";
 import { displayCwd, findItem, type Item, load, restoreCommand } from "./store.ts";
 
-const PORT = Number(process.env.ONETERM_PORT || 7317);
-
 const HELP = `oneterm: OneTab for Ghostty tabs and pi sessions
 
   oneterm stash [--all|--others|--this] [--force] [--note TEXT] [--dry-run]
@@ -14,8 +12,8 @@ const HELP = `oneterm: OneTab for Ghostty tabs and pi sessions
   oneterm restore ID...      Restore items by id; g-prefixed ids restore a whole group
   oneterm ls [--json]        List the stash
   oneterm rm ID...           Delete items (or groups) without restoring
-  oneterm serve              Run the web page on http://127.0.0.1:${PORT}
-  oneterm open               Open the web page`;
+  oneterm agent              Sync with the hub page on devbox (run by launchd)
+  oneterm open               Open the hub page`;
 
 function flag(args: string[], name: string) {
 	const i = args.indexOf(name);
@@ -154,13 +152,17 @@ async function main() {
 			return preview(args[0]);
 		case "_lines":
 			return lines();
-		case "serve": {
-			const { serve } = await import("./server.ts");
-			return serve(PORT);
+		case "agent": {
+			const { agent } = await import("./agent.ts");
+			return agent();
 		}
-		case "open":
-			spawnSync("open", [`http://127.0.0.1:${PORT}/`]);
+		case "open": {
+			const { hubConfig } = await import("./agent.ts");
+			const config = hubConfig();
+			if (!config) throw new Error("oneterm: no hub configured in ~/.oneterm/hub.json");
+			spawnSync("open", [`${config.url}/`]);
 			return;
+		}
 		default:
 			console.log(HELP);
 			if (cmd && cmd !== "help" && cmd !== "--help" && cmd !== "-h") process.exitCode = 1;
