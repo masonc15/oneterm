@@ -28,7 +28,7 @@ export function startNudge(hubUrl: string | null, log: (m: string) => void) {
 			[
 				"-title", "oneterm",
 				"-subtitle", `${open} Ghostty tabs open`,
-				"-message", `That's more than ${cap}. Stash the ones you aren't using?`,
+				"-message", `Your limit is ${cap}.`,
 				"-group", "oneterm-tab-cap",
 				"-action", `${STASH_BUTTON},${OPEN_BUTTON}`,
 				"-timeout", "600",

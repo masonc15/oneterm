@@ -350,7 +350,7 @@ function renderMac(mac, tabs) {
   const note = document.getElementById("tabs-note");
   note.classList.toggle("over", Boolean(over));
   note.textContent = mac.online && tabs
-    ? `${plural(tabs.open, "tab")} open in Ghostty${over ? ` (cap is ${tabs.cap})` : ""}${kept ? ` · ${kept} can't be stashed` : ""}`
+    ? `${plural(tabs.open, "tab")} open in Ghostty${over ? ` (limit is ${tabs.cap})` : ""}${kept ? ` · ${kept} can't be stashed` : ""}`
     : "";
 }
 
