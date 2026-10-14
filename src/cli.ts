@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { groupItemIds, remove, restore } from "./restore.ts";
+import { groupItemIds, move, remove, restore } from "./restore.ts";
 import { reap, type Scope, stash } from "./stash.ts";
 import { displayCwd, findItem, type Item, load, restoreCommand } from "./store.ts";
 
@@ -12,6 +12,7 @@ const HELP = `oneterm: OneTab for Ghostty tabs and pi sessions
   oneterm restore ID...      Restore items by id; g-prefixed ids restore a whole group
   oneterm ls [--json]        List the stash
   oneterm rm ID...           Delete items (or groups) without restoring
+  oneterm mv ID... GROUP     Move items into another group
   oneterm agent              Sync with the hub page on devbox (run by launchd)
   oneterm open               Open the hub page`;
 
@@ -143,6 +144,11 @@ async function main() {
 			if (r.restored.length) console.log(`Restored ${r.restored.join(", ")}`);
 			if (r.missing.length) console.log(`Session file missing for ${r.missing.join(", ")}`);
 			return;
+		}
+		case "mv": {
+			const group = args.pop();
+			if (!group || !args.length) throw new Error("usage: oneterm mv ID... GROUP");
+			return console.log(`Moved ${move(expandIds(args), group)}`);
 		}
 		case "rm":
 			return console.log(`Deleted ${remove(expandIds(args))}`);

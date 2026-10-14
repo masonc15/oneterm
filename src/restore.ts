@@ -59,6 +59,28 @@ export function remove(itemIds: string[]): number {
 	});
 }
 
+/**
+ * Move items into another group, before `beforeId` or at the end. Moving within a
+ * group reorders it. Groups left empty disappear. Returns how many items moved.
+ */
+export function move(itemIds: string[], groupId: string, beforeId?: string): number {
+	const want = new Set(itemIds);
+	return update((s) => {
+		const target = s.groups.find((g) => g.id === groupId);
+		if (!target) return 0;
+		const moving: Item[] = [];
+		for (const g of s.groups) {
+			for (const item of g.items) if (want.has(item.id) && item.status === "stashed") moving.push(item);
+			g.items = g.items.filter((i) => !moving.includes(i));
+		}
+		if (!moving.length) return 0;
+		const at = beforeId ? target.items.findIndex((i) => i.id === beforeId) : -1;
+		target.items.splice(at === -1 ? target.items.length : at, 0, ...moving);
+		logHistory("move", { groupId, beforeId, items: moving.map((i) => i.id) });
+		return moving.length;
+	});
+}
+
 export function groupItemIds(groupId: string): string[] {
 	return load().groups.find((g) => g.id === groupId)?.items.map((i) => i.id) ?? [];
 }
