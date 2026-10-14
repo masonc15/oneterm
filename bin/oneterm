@@ -1,0 +1,21 @@
+#!/bin/sh
+# Run oneterm with a Node new enough to strip TypeScript types (22.18+).
+# Raycast and launchd start with a bare PATH, so look in the usual places.
+set -e
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case "$link" in /*) self=$link ;; *) self=${self%/*}/$link ;; esac
+done
+root=$(cd "${self%/*}/.." && pwd)
+for node in \
+  "$HOME/.local/share/fnm/aliases/default/bin/node" \
+  "${XDG_DATA_HOME:-$HOME/.local/share}/pi-node/current/bin/node" \
+  /opt/homebrew/bin/node \
+  "$(command -v node 2>/dev/null || true)"; do
+  if [ -n "$node" ] && [ -x "$node" ]; then
+    exec "$node" --no-warnings "$root/src/cli.ts" "$@"
+  fi
+done
+echo "oneterm: node not found" >&2
+exit 127
