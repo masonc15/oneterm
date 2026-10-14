@@ -54,6 +54,8 @@ function stripGlyph(title: string) {
 export interface TabCounts {
 	/** Tabs a stash would close. */
 	tabs: number;
+	/** Their titles, and what is in them (a tab with any pi counts as pi). */
+	stash: { title: string; kind: Item["kind"] }[];
 	/** Tabs it would leave open, and why. */
 	kept: { title: string; reason: string }[];
 }
@@ -66,6 +68,14 @@ export function countTabs(): { all: TabCounts; others: TabCounts; open: number }
 	const counted = tabs.map((tab) => ({ tab, c: classifyTab(tab, procs, live, false) }));
 	const tally = (list: typeof counted): TabCounts => ({
 		tabs: list.filter((x) => !x.c.skip).length,
+		stash: list
+			.filter((x) => !x.c.skip)
+			.map((x) => {
+				const kinds = x.c.tabItems.map((i) => i.kind);
+				const kind = (["pi", "ssh", "command"] as const).find((k) => kinds.includes(k)) ?? "shell";
+				const title = x.c.tabItems.find((i) => i.kind === kind)?.title ?? x.c.title;
+				return { title, kind };
+			}),
 		kept: list.filter((x) => x.c.skip).map((x) => ({ title: x.c.title, reason: x.c.skip! })),
 	});
 	const current = tabs.find((t) => t.windowIndex === 0 && t.selected);
@@ -112,18 +122,19 @@ function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: ReturnT
 				kind: "pi",
 				status: "pending",
 				cwd: fg.live.cwd,
-				title: stripGlyph(fg.live.name || title),
+				// An unnamed pi's tab title is just its folder name; say what it is.
+				title: fg.live.name ? stripGlyph(fg.live.name) : `pi in ${displayCwd(fg.live.cwd)}`,
 				name: fg.live.name ?? undefined,
 				sessionId: fg.live.sessionId,
 				sessionFile: fg.live.sessionFile ?? undefined,
 				pid: fg.pid,
 			});
 		} else if (fg.kind === "pi-unregistered") {
-			skip = "pi started before oneterm was installed (run /reload-all)";
+			skip = "pi needs /reload-all";
 		} else if (force) {
 			tabItems.push({ ...base, kind: "command", status: "stashed", command: fg.command });
 		} else {
-			skip = `running ${fg.command.split(/\s+/)[0]}`;
+			skip = `running ${fg.command.split(/\s+/)[0].split("/").pop()}`;
 		}
 	}
 	return { title, tabItems, skip };
