@@ -86,6 +86,13 @@
   .line2.cmd { font: 12.5px/1.45 var(--mono); color: var(--ink-3); }
   .del { grid-row: 1 / span 2; grid-column: 3; align-self: center; width: 26px; height: 26px; border-radius: 6px; color: var(--ink-3); opacity: 0; font-size: 18px; line-height: 1; }
   li.item:hover .del, .del:focus-visible { opacity: 1; }
+  @media (hover: none) { .del { opacity: 1; } }
+  .mac { display: inline-flex; align-items: center; gap: 6px; margin-left: 10px; font-size: 13px; color: var(--ink-3); }
+  .mac::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #b9b6ae; }
+  .mac.on { color: #2f7a3e; }
+  .mac.on::before { background: #3ea152; }
+  .chip.queued { background: var(--accent-soft); color: var(--accent); }
+  .chip.queued button { color: inherit; text-decoration: underline; margin-left: 6px; font-size: 12px; }
   .del:hover { background: #f3e7e6; color: var(--danger); }
 
   details.older { margin-top: 40px; border-top: 1px solid var(--rule); padding-top: 16px; }
@@ -103,7 +110,14 @@
   }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
   @media (prefers-reduced-motion: reduce) { .toast { transition: none; } .chip.wait::before { animation: none; } }
-  @media (max-width: 640px) { header { flex-wrap: wrap; } .actions { margin-left: 0; } .cwd { display: none; } }
+  @media (max-width: 640px) {
+    .wrap { padding: 0 16px 64px; }
+    header { flex-wrap: wrap; } .actions { margin-left: 0; } .cwd { display: none; }
+    .mac { display: flex; margin-left: 0; margin-top: 2px; }
+    .line1 { flex-wrap: wrap; row-gap: 4px; }
+    .title { white-space: normal; }
+    .line2 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  }
 </style>
 </head>
 <body>
@@ -118,7 +132,7 @@
       </svg>
       <div>
         <h1>one<span>term</span></h1>
-        <div class="total" id="total">&nbsp;</div>
+        <div class="total"><span id="total">&nbsp;</span><span class="mac" id="mac"></span></div>
       </div>
     </div>
     <div class="actions">
@@ -127,7 +141,7 @@
     </div>
   </header>
   <main id="list"></main>
-  <p class="hint">Click a title to reopen it in Ghostty; it leaves this list. pi sessions resume with <code>pi --session</code>.</p>
+  <p class="hint">Click a title to reopen it in Ghostty on the Mac; it leaves this list. pi sessions resume with <code>pi --session</code>. Clicks made while the Mac is offline wait until it is back.</p>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -185,6 +199,7 @@ async function act(path, data, done) {
 }
 
 function restoredText(r) {
+  if (r.queued) return `Mac is offline; ${r.count === 1 ? "it reopens" : `${plural(r.count, "terminal")} reopen`} when it's back`;
   const parts = [];
   if (r.restored.length) parts.push(`Reopened ${r.restored.length === 1 ? r.restored[0] : plural(r.restored.length, "terminal")}`);
   if (r.missing.length) parts.push(`session file missing for ${r.missing.join(", ")}`);
@@ -192,13 +207,15 @@ function restoredText(r) {
 }
 
 function itemRow(item, prev) {
-  const pending = item.status === "pending";
+  const pending = item.status === "pending" || Boolean(item.queuedAction);
   const title = pending
     ? el("span", { class: "title" }, item.title)
     : el("button", { class: "title", title: item.lastUser ? `You: ${item.lastUser}` : "Reopen in Ghostty",
         onclick: () => act("/api/restore", { itemIds: [item.id] }, restoredText) }, item.title);
   const chips = [];
-  if (pending) chips.push(el("span", { class: "chip wait" }, "finishing current step"));
+  if (item.queuedAction) chips.push(el("span", { class: "chip queued" }, "reopens when the Mac is back",
+    el("button", { onclick: () => act("/api/cancel", { actionId: item.queuedAction }, () => "Cancelled") }, "cancel")));
+  else if (pending) chips.push(el("span", { class: "chip wait" }, "finishing current step"));
   else if (item.interrupted) chips.push(el("span", { class: "chip warn", title: "pi stopped at a safe point mid-task. Say “continue” after resuming." }, "stopped mid-task"));
   const said = item.lastAssistant || (item.lastUser ? `You: ${item.lastUser}` : "");
   const second = said
@@ -211,7 +228,7 @@ function itemRow(item, prev) {
     el("div", { class: "line1" }, title, item.title === item.cwdShort ? null : el("span", { class: "cwd", title: item.cwd }, item.cwdShort), chips),
     second,
     pending ? null : el("button", { class: "del", title: "Delete without restoring", "aria-label": `Delete ${item.title}`,
-      onclick: () => act("/api/delete", { itemIds: [item.id] }, () => `Deleted ${item.title}`) }, "×"),
+      onclick: () => act("/api/delete", { itemIds: [item.id] }, (r) => `Deleted ${item.title}${r.queued ? " (syncs when the Mac is back)" : ""}`) }, "×"),
   );
 }
 
@@ -234,7 +251,19 @@ function groupBlock(g) {
   );
 }
 
+function renderMac(mac) {
+  const node = document.getElementById("mac");
+  node.className = `mac${mac.online ? " on" : ""}`;
+  node.textContent = mac.online ? "Mac online" : mac.seenAt ? `Mac offline · seen ${ago(new Date(mac.seenAt).toISOString())}` : "Mac never connected";
+  for (const id of ["stash-all", "stash-others"]) {
+    const btn = document.getElementById(id);
+    btn.disabled = !mac.online || btn.dataset.busy === "1";
+    btn.title = mac.online ? btn.dataset.title : "The Mac is offline";
+  }
+}
+
 function render(state) {
+  renderMac(state.mac);
   const total = state.groups.reduce((n, g) => n + g.items.length, 0);
   document.getElementById("total").textContent = total ? `${plural(total, "terminal")} in ${plural(state.groups.length, "group")}` : "Nothing stashed";
   document.title = total ? `oneterm (${total})` : "oneterm";
@@ -268,7 +297,7 @@ async function refresh(force) {
     lastJson = text;
     render(JSON.parse(text));
   } catch {
-    document.getElementById("total").textContent = "oneterm server is not running";
+    document.getElementById("total").textContent = "Can't reach the oneterm hub";
   }
 }
 
@@ -276,6 +305,7 @@ for (const [id, scope] of [["stash-all", "all"], ["stash-others", "others"]]) {
   document.getElementById(id).addEventListener("click", async (e) => {
     const btn = e.currentTarget;
     btn.disabled = true;
+    btn.dataset.busy = "1";
     await act("/api/stash", { scope }, (r) => {
       const n = r.stashed.length + r.pending.length;
       const parts = [n ? `Stashed ${plural(n, "terminal")}` : "Nothing to stash"];
@@ -283,8 +313,13 @@ for (const [id, scope] of [["stash-all", "all"], ["stash-others", "others"]]) {
       if (r.skipped.length) parts.push(`kept open: ${r.skipped.map((s) => s.title).join(", ")}`);
       return parts.join(" · ");
     });
-    btn.disabled = false;
+    delete btn.dataset.busy;
+    refresh(true);
   });
+}
+for (const id of ["stash-all", "stash-others"]) {
+  const btn = document.getElementById(id);
+  btn.dataset.title = btn.title;
 }
 
 refresh(true);
