@@ -116,6 +116,33 @@ class AgentTests(unittest.TestCase):
         with patch.object(a, 'processes', return_value={11: one, 22: two}), patch.object(a, 'connection_of', return_value=['same', 'port']):
             self.assertIn('multiplexing', a.probe(['same', 'port'])['skip'])
 
+    def test_idle_resume_is_identified_from_its_own_argv(self):
+        sid = '01a13b62-053c-7661-8a2e-b85711209bd8'
+        with tempfile.TemporaryDirectory() as tmp:
+            a.HOME = Path(tmp)
+            a.NATIVE = a.HOME / 'native'
+            transcript = Path(tmp) / 'codex/sessions/2026/10/14' / ('rollout-2026-10-14T13-07-22-%s.jsonl' % sid)
+            transcript.parent.mkdir(parents=True)
+            transcript.write_text('{}\n')
+            p = dict(pid=os.getpid(), ppid=1, pgid=7, tpgid=7, tty='ttys9', args='/x/codex --no-daemon resume ' + sid)
+            started = time.time() - 60
+            os.utime(transcript, (started + 2, started + 2))
+            with patch.object(a, 'codex_home', return_value=Path(tmp) / 'codex'), \
+                    patch.object(a, 'elapsed', return_value=60), patch.object(a, 'cwd_of', return_value='/work'):
+                found = a.resumed(p)
+                self.assertEqual((found['sessionId'], found['cwd'], found['phase']), (sid, '/work', 'resumed'))
+                # A turn wrote to the transcript after startup: not provably idle.
+                os.utime(transcript, None)
+                self.assertIsNone(a.resumed(p))
+                os.utime(transcript, (started + 2, started + 2))
+                for args in ['node /x/@openai/codex/bin/codex.js resume ' + sid, '/x/codex resume ' + sid + ' prompt',
+                             '/x/codex resume --last', '/x/codex app-server proxy']:
+                    self.assertIsNone(a.resumed(dict(p, args=args)), args)
+                self.assertIsNone(a.resumed(dict(p, tty='??')))
+                self.assertIsNone(a.resumed(dict(p, tpgid=8)))  # not the foreground job
+                a.write(a.NATIVE / ('%s.json' % p['pid']), {'pid': p['pid']})
+                self.assertIsNone(a.resumed(p))  # hooks own it once they register
+
     def test_owner_excludes_bridge_and_desktop(self):
         parent = os.getppid()
         base = dict(pid=parent, ppid=1, pgid=parent, tpgid=parent, tty='ttys999', args='claude')

@@ -14,6 +14,9 @@ import time
 HOME = Path(os.environ.get('ONETERM_HOME', Path.home() / '.oneterm'))
 NATIVE = HOME / 'native'
 SHELLS = {'zsh', 'bash', 'fish', 'sh', 'dash', 'nu'}
+UUID = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+# Resume writes its settings to the transcript at startup; a turn writes again later.
+RESUME_QUIET_SECONDS = 10
 
 
 def read(path):
@@ -184,6 +187,63 @@ def hook(kind):
             print(json.dumps(output))
 
 
+def elapsed(pid):
+    try:
+        out = subprocess.check_output(['ps', '-p', str(pid), '-o', 'etime='], text=True, stderr=subprocess.DEVNULL).strip()
+        days, _, rest = out.rpartition('-')
+        parts = [int(x) for x in rest.split(':')]
+    except (subprocess.SubprocessError, ValueError):
+        return None
+    while len(parts) < 3:
+        parts.insert(0, 0)
+    return int(days or 0) * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2]
+
+
+def cwd_of(pid):
+    if sys.platform.startswith('linux'):
+        return os.readlink('/proc/%s/cwd' % pid)
+    out = subprocess.check_output(['lsof', '-a', '-p', str(pid), '-d', 'cwd', '-Fn'], text=True, stderr=subprocess.DEVNULL)
+    return next(line[1:] for line in out.splitlines() if line.startswith('n'))
+
+
+def codex_home():
+    return Path.home() / '.codex'
+
+
+def resumed(p):
+    """An unregistered `codex resume <uuid>` that has not run a turn since it started.
+
+    Codex fires its first hook only when a turn starts, so a freshly restored session
+    has no registration. Its session ID comes from its own argv, and its transcript
+    has not been written since startup, so nothing is running and nothing is unsaved.
+    """
+    words = p['args'].split()
+    if agent_name(p['args']) != 'codex' or Path(words[0]).name in {'node', 'bun'}:
+        return None
+    if p['tty'] in {'?', '??', '-'} or p['pgid'] != p['tpgid'] or 'resume' not in words:
+        return None
+    i = words.index('resume')
+    # A prompt after the ID starts a turn immediately.
+    if len(words) != i + 2 or not UUID.match(words[i + 1]):
+        return None
+    if (NATIVE / ('%s.json' % p['pid'])).exists():
+        return None
+    sid = words[i + 1]
+    files = list((codex_home() / 'sessions').glob('*/*/*/rollout-*-%s.jsonl' % sid))
+    age, start = elapsed(p['pid']), identity(p['pid'])
+    if len(files) != 1 or age is None or age < 3 or not start:
+        return None
+    started = time.time() - age
+    if files[0].stat().st_mtime > started + RESUME_QUIET_SECONDS:
+        return None
+    try:
+        cwd = cwd_of(p['pid'])
+    except (OSError, subprocess.SubprocessError, StopIteration):
+        return None
+    return dict(pid=p['pid'], identity=start, kind='codex', sessionId=sid, sessionFile=str(files[0]), cwd=cwd,
+                name=None, phase='resumed', tools=[], updatedAt=started)
+
+
 def live():
     result = []
     procs = processes()
@@ -200,6 +260,8 @@ def live():
             if not start or (kind is None and start != s.get('identity')):
                 continue
             result.append(dict(s, kind=kind or s['kind'], identity=start))
+    seen = {s['pid'] for s in result}
+    result += [r for r in (resumed(p) for p in procs.values() if p['pid'] not in seen) if r]
     return result
 
 
@@ -241,7 +303,7 @@ def request(item, group_id, timeout):
     current = next((s for s in live() if s['pid'] == item['pid'] and s['identity'] == item['identity'] and s['sessionId'] == item['sessionId']), None)
     if not current:
         raise ValueError('agent identity changed before stash')
-    req = dict(itemId=item['id'], groupId=group_id, timeoutMs=timeout, identity=item['identity'], sessionId=item['sessionId'], expiresAt=time.time() + timeout / 1000, interrupted=current.get('phase') != 'idle')
+    req = dict(itemId=item['id'], groupId=group_id, timeoutMs=timeout, identity=item['identity'], sessionId=item['sessionId'], expiresAt=time.time() + timeout / 1000, interrupted=current.get('phase') not in {'idle', 'resumed'})
     (HOME / 'acks' / ('%s.json' % item['pid'])).unlink(missing_ok=True)
     write(HOME / 'requests' / ('%s.json' % item['pid']), req)
     return {'ok': True}
@@ -263,6 +325,10 @@ def poll(item):
     with (NATIVE / ('%s.lock' % pid)).open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         s = read(NATIVE / ('%s.json' % pid))
+        if not s:
+            # Rechecked under the hook lock: a prompt's first hook waits for this decision.
+            p = processes().get(pid)
+            s = p and resumed(p)
         req = read(reqpath)
         ack = read(ackpath)
         if (s and s.get('phase') == 'ended' and not s.get('tools') and not s.get('background')
@@ -271,10 +337,10 @@ def poll(item):
             return {'done': True, 'ack': ack}
         if not s or not req or req.get('itemId') != item['id'] or req.get('expiresAt', 0) < time.time():
             return {'pending': True}
-        if s.get('phase') not in {'idle', 'safe', 'ended'} or s.get('tools') or s.get('background') or s.get('sessionId') != item['sessionId']:
+        if s.get('phase') not in {'idle', 'safe', 'ended', 'resumed'} or s.get('tools') or s.get('background') or s.get('sessionId') != item['sessionId']:
             return {'pending': True}
         # Give the synchronous Stop hook and asynchronous transcript writer time to finish.
-        if time.time() - s['updatedAt'] < 1:
+        if s['phase'] != 'resumed' and time.time() - s['updatedAt'] < 1:
             return {'pending': True}
         has_transcript = bool(s.get('sessionFile') and Path(s['sessionFile']).is_file())
         if not has_transcript and s.get('lastUser'):
