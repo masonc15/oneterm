@@ -3,3 +3,5 @@ AGENTS.md
 CLAUDE.md
 AGENTS.override.md
 .DS_Store
+__pycache__/
+*.pyc

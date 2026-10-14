@@ -5,9 +5,9 @@
   </picture>
 </p>
 
-<p align="center"><strong>OneTab for Ghostty tabs and the pi sessions running in them.</strong></p>
+<p align="center"><strong>OneTab for Ghostty tabs and agent sessions.</strong></p>
 
-One command saves every open Ghostty tab, including the pi session running in it, to a list and closes the tabs. Later you reopen them one at a time from that list instead of facing the whole pile again.
+One command saves Ghostty tabs and their pi, Claude Code, or Codex sessions to a list and closes the tabs. Later you reopen them one at a time instead of facing the whole pile again. Sessions on devbox work too.
 
 <p align="center">
   <img src=".github/assets/screenshot.png" alt="The oneterm page: stashed terminals grouped by when they were stashed, with restore and delete links" width="760">
@@ -15,11 +15,15 @@ One command saves every open Ghostty tab, including the pi session running in it
 
 ## How a stash works
 
-`oneterm stash` asks Ghostty (through its AppleScript dictionary) for every tab and terminal, then looks at what each terminal's tty has in the foreground. An idle shell is saved as its working directory and an ssh session as its command line. A pi session is saved as its session file, which the bundled pi extension reports from inside pi. Tabs running anything else, like a dev server or an editor, stay open unless you pass `--force`; with it the command line is saved and typed back (not run) on restore.
+`oneterm stash` asks Ghostty for every tab and terminal, then checks each terminal's foreground process. Idle shells save their working directory. The pi extension and native-agent hooks report exact session IDs and transcript files; oneterm never guesses from a file's timestamp. Editors, dev servers, and unregistered agents stay open. `--force` saves other local programs' command lines to retype, without running them, on restore. It does not override SSH safety checks.
 
 Idle pi sessions close right away. A pi that is mid-task winds down at the next safe point. The tool call that is running finishes and its result lands in the session, tool calls that haven't started are skipped with a note to the model, and pi stops before its next model request. A pi waiting on a question (ask_user and friends) has the question cancelled. If a step is still running after two minutes it gets aborted. Either way, the list marks the session "stopped mid-task" and saying "continue" after resuming picks it up where it left off. Brand-new pi sessions with no messages are closed but not listed, the way OneTab skips blank tabs.
 
-Restoring opens a new Ghostty tab in the saved directory and runs `pi --session <file>` (or ssh, or nothing for a shell). Terminals that shared a tab come back as splits in one tab. Restored items leave the list; everything that was ever stashed, restored, or deleted is logged in `~/.oneterm/history.jsonl`.
+Claude Code and Codex use synchronous lifecycle hooks. Once a stash is requested, new tools are denied, running tools drain, and oneterm checks the process's birth token before stopping it. Codex's completed tool result is left intact: its `PostToolUse` stop response would replace that result, not end the turn. A session with background work, an unresolved tool, or missing hooks stays open if it cannot stop safely within two minutes. Hook coverage is not a universal process audit; deliberately detached programs are outside this handoff.
+
+SSH support is opt-in through `remoteHosts` in `~/.oneterm/config.json`. The Mac matches its SSH socket's source address and port to `SSH_CONNECTION` on the host, then inspects that terminal's foreground process. It saves the actual remote cwd, agent type, and session ID, not just `ssh devbox`. Unmatched connections, multiplexed connections with several terminals, mosh, and unsupported SSH options stay open. Simple `ssh [-t] [-p PORT] [-l USER] [-i KEY] HOST` connections and oneterm's own restore commands are supported.
+
+Restoring runs `pi --session <file>`, `claude --resume <id>`, or `codex --no-daemon resume <id>` in the saved directory. Remote sessions reconnect over SSH and run the resume command on the host. Missing or unreachable remote transcripts remain in the list. Terminals that shared a tab return as side-by-side splits. Restored items leave the list; stash, restore, and delete events are logged in `~/.oneterm/history.jsonl`.
 
 ## Using it
 
