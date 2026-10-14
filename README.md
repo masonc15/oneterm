@@ -25,7 +25,9 @@ oneterm open               # the web page
 
 Inside pi, `/oneterm`, `/oneterm others`, and `/oneterm this` do the same for the tab you're in.
 
-The web page at http://127.0.0.1:7317 is the OneTab-style view: groups by stash time, click a title to reopen it, "Restore all" and "Delete all" per group, and groups older than two weeks folded away. A LaunchAgent (`launchd/com.colin.oneterm-serve.plist`) keeps it running. It only listens on localhost, rejects other Host headers, and needs a custom request header for anything that changes state, so other websites can't drive it.
+The web page lives on devbox at http://100.64.0.10:7317 (over Tailscale, so it works from the phone too) and stays up when this Mac is asleep or away. It is the OneTab-style view: groups by stash time, click a title to reopen it, "Restore all" and "Delete all" per group, and groups older than two weeks folded away. The header says whether the Mac is online.
+
+The Mac stays the source of truth. `oneterm agent`, kept running by a LaunchAgent (`launchd/com.colin.oneterm-agent.plist`), pushes the stash to the hub whenever it changes and long-polls the hub for clicks. With the Mac online a restore opens the tab within a second. With it offline, deletes show right away and restores wait, marked "reopens when the Mac is back" with a cancel link, and run when the agent reconnects (they expire after a day). Stashing from the page needs the Mac online. The hub only ever passes item ids to the Mac, never commands, so nothing typed into the page can make the Mac run something it didn't save itself. The agent authenticates with a token in `~/.oneterm/hub.json`, the page rejects unknown Host headers, and writes need a custom header so other websites can't drive it.
 
 The `raycast/` scripts add "Stash Ghostty Tabs", "Stash Other Ghostty Tabs", and "Open oneterm" commands; give them hotkeys in Raycast.
 
@@ -37,12 +39,15 @@ Requires Ghostty 1.3+ (for AppleScript), Node 22.18+ (oneterm runs its TypeScrip
 pi install ~/workspace/oneterm                      # the pi extension
 ln -s ~/workspace/oneterm/bin/oneterm ~/.local/bin/oneterm
 cp raycast/*.sh ~/raycast/script-commands/
-cp launchd/com.colin.oneterm-serve.plist ~/Library/LaunchAgents/
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.colin.oneterm-serve.plist
+cp launchd/com.colin.oneterm-agent.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.colin.oneterm-agent.plist
+./deploy-hub.sh                                      # the page on devbox
 ```
+
+The hub and the agent share a token: `ONETERM_TOKEN` in devbox's `~/docker/oneterm/.env` and `{"url", "token"}` in `~/.oneterm/hub.json` here (both mode 600). `deploy-hub.sh` rsyncs `src/hub.ts`, `web/index.html` and the `hub/` Docker files to devbox and rebuilds; it never touches the hub's `data/` or `.env`.
 
 pi sessions that were already running before the install don't have the extension yet and are left open by a stash; run `/reload-all` in any pi tab to load it everywhere.
 
 ## Files
 
-Everything lives in `~/.oneterm`: `stash.json` is the list, `stash.md` is a readable copy of it, `live/` holds one file per running pi (pid to session file), and `requests/` and `acks/` are how the CLI and the pi extension hand off a stash. Set `ONETERM_HOME` to use another directory and `ONETERM_PORT` to move the web page.
+Everything lives in `~/.oneterm`: `stash.json` is the list, `stash.md` is a readable copy of it, `live/` holds one file per running pi (pid to session file), and `requests/` and `acks/` are how the CLI and the pi extension hand off a stash. Set `ONETERM_HOME` to use another directory. The hub keeps its copy of the stash and the click queue in `~/docker/oneterm/data/hub.json` on devbox.
