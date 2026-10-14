@@ -36,13 +36,15 @@ const COUNT_FRESH_MS = 30_000;
 /** Queued restores older than this are dropped instead of opening tabs out of nowhere. */
 const RESTORE_TTL_MS = 24 * 3600_000;
 
-type ActionType = "restore" | "delete" | "stash" | "count";
+type ActionType = "restore" | "delete" | "stash" | "count" | "move";
 
 interface Action {
 	id: string;
 	type: ActionType;
 	itemIds?: string[];
 	scope?: "all" | "others";
+	groupId?: string;
+	beforeId?: string;
 	createdAt: number;
 	sentAt?: number;
 	doneAt?: number;
@@ -127,12 +129,23 @@ function view() {
 	const deleted = new Set(pending().flatMap((a) => (a.type === "delete" ? a.itemIds ?? [] : [])));
 	const restoring = new Map<string, string>();
 	for (const a of pending()) if (a.type === "restore") for (const id of a.itemIds ?? []) restoring.set(id, a.id);
-	const groups = state.groups
-		.map((g) => ({
-			...g,
-			items: g.items.filter((i) => !deleted.has(i.id)).map((i) => (restoring.has(i.id) ? { ...i, queuedAction: restoring.get(i.id) } : i)),
-		}))
-		.filter((g) => g.items.length);
+	let groups = state.groups.map((g) => ({
+		...g,
+		items: g.items.filter((i) => !deleted.has(i.id)).map((i) => (restoring.has(i.id) ? { ...i, queuedAction: restoring.get(i.id) } : i)),
+	}));
+	// Show moves the Mac hasn't made yet, in the order they were dropped (same rules as restore.ts move()).
+	for (const a of pending()) {
+		if (a.type !== "move") continue;
+		const target = groups.find((g) => g.id === a.groupId);
+		if (!target) continue;
+		const want = new Set(a.itemIds ?? []);
+		const moving = groups.flatMap((g) => g.items.filter((i) => want.has(i.id) && i.status === "stashed"));
+		groups = groups.map((g) => ({ ...g, items: g.items.filter((i) => !moving.includes(i)) }));
+		const t = groups.find((g) => g.id === a.groupId)!;
+		const at = a.beforeId ? t.items.findIndex((i) => i.id === a.beforeId) : -1;
+		t.items.splice(at === -1 ? t.items.length : at, 0, ...moving);
+	}
+	groups = groups.filter((g) => g.items.length);
 	return { groups, tabs, mac: { online: macOnline(), seenAt: state.agentSeenAt, syncedAt: state.syncedAt } };
 }
 
@@ -279,6 +292,15 @@ async function handlePage(req: IncomingMessage, res: ServerResponse, url: URL) {
 		case "/api/delete": {
 			const action = enqueue({ type: "delete", itemIds: list });
 			return send(res, 200, { deleted: list.length, queued: !macOnline(), actionId: action.id });
+		}
+		case "/api/move": {
+			// Here groupId is the destination, so the items come only from itemIds.
+			const moving = ids(data.itemIds);
+			if (!moving.length || typeof data.groupId !== "string") return send(res, 400, { error: "itemIds and groupId are required" });
+			const beforeId = typeof data.beforeId === "string" ? data.beforeId : undefined;
+			const action = enqueue({ type: "move", itemIds: moving, groupId: data.groupId, beforeId });
+			if (macOnline() && (await waitDone(action, CLICK_WAIT_MS))) return send(res, 200, action.result);
+			return send(res, 200, { moved: moving.length, queued: true });
 		}
 		case "/api/cancel": {
 			const before = state.actions.length;

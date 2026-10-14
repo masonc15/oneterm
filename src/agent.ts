@@ -5,7 +5,7 @@
 
 import { statSync } from "node:fs";
 import { join } from "node:path";
-import { remove, restore } from "./restore.ts";
+import { move, remove, restore } from "./restore.ts";
 import { startNudge } from "./nudge.ts";
 import { countTabs, stash } from "./stash.ts";
 import { HOME, load, readJson } from "./store.ts";
@@ -17,9 +17,11 @@ interface HubConfig {
 
 interface Action {
 	id: string;
-	type: "restore" | "delete" | "stash" | "count";
+	type: "restore" | "delete" | "stash" | "count" | "move";
 	itemIds?: string[];
 	scope?: "all" | "others";
+	groupId?: string;
+	beforeId?: string;
 }
 
 const STASH_FILE = join(HOME, "stash.json");
@@ -84,6 +86,8 @@ export async function agent() {
 				return stash({ scope: action.scope === "others" ? "others" : "all" });
 			case "count":
 				return countTabs();
+			case "move":
+				return { moved: move(action.itemIds ?? [], action.groupId ?? "", action.beforeId) };
 		}
 	};
 
