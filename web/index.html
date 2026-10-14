@@ -191,7 +191,7 @@
 
 <script>
 const OLDER_THAN_DAYS = 14;
-const KIND = { pi: "π", shell: "$", ssh: "⇄", command: "▸" };
+const KIND = { pi: "π", claude: "C", codex: "X", shell: "$", ssh: "⇄", command: "▸" };
 const list = document.getElementById("list");
 let lastJson = "";
 
@@ -260,7 +260,7 @@ function itemRow(item, prev) {
   if (item.queuedAction) chips.push(el("span", { class: "chip queued" }, "reopens when the Mac is back",
     el("button", { onclick: () => act("/api/cancel", { actionId: item.queuedAction }, () => "Cancelled") }, "cancel")));
   else if (pending) chips.push(el("span", { class: "chip wait" }, "finishing current step"));
-  else if (item.interrupted) chips.push(el("span", { class: "chip warn", title: "pi stopped at a safe point mid-task. Say “continue” after resuming." }, "stopped mid-task"));
+  else if (item.interrupted) chips.push(el("span", { class: "chip warn", title: "The agent stopped at a safe point mid-task. Say “continue” after resuming." }, "stopped mid-task"));
   const said = item.lastAssistant || (item.lastUser ? `You: ${item.lastUser}` : "");
   const second = said
     ? el("div", { class: "line2", title: said }, said)
@@ -278,7 +278,7 @@ function itemRow(item, prev) {
       },
       ondragend: (e) => { e.currentTarget.classList.remove("dragging"); endDrag(); } },
     el("span", { class: `kind ${item.kind}`, title: item.kind }, KIND[item.kind] || "?"),
-    el("div", { class: "line1" }, title, item.title === item.cwdShort ? null : el("span", { class: "cwd", title: item.cwd }, item.cwdShort), chips),
+    el("div", { class: "line1" }, title, item.title === item.cwdShort ? null : el("span", { class: "cwd", title: item.cwd }, `${item.remote ? item.remote.host + ": " : ""}${item.cwdShort}`), chips),
     second,
     pending ? null : el("button", { class: "del", title: "Delete without restoring", "aria-label": `Delete ${item.title}`,
       onclick: () => act("/api/delete", { itemIds: [item.id] }, (r) => `Deleted ${item.title}${r.queued ? " (syncs when the Mac is back)" : ""}`) }, "×"),

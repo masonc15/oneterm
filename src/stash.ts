@@ -3,6 +3,7 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { closeTerminals, listTabs, type Tab } from "./ghostty.ts";
 import { alive, foreground, livePis, snapshot } from "./procs.ts";
+import { agentFileExists, cancelAgent, pollAgent, remoteAgent, requestAgent } from "./agents.ts";
 import {
 	ACK_DIR,
 	config,
@@ -73,7 +74,7 @@ export function countTabs(): { all: TabCounts; others: TabCounts; open: number; 
 			.filter((x) => !x.c.skip)
 			.map((x) => {
 				const kinds = x.c.tabItems.map((i) => i.kind);
-				const kind = (["pi", "ssh", "command"] as const).find((k) => kinds.includes(k)) ?? "shell";
+				const kind = (["pi", "claude", "codex", "ssh", "command"] as const).find((k) => kinds.includes(k)) ?? "shell";
 				const title = x.c.tabItems.find((i) => i.kind === kind)?.title ?? x.c.title;
 				return { title, kind };
 			}),
@@ -108,30 +109,46 @@ interface Classified {
 }
 
 /** Turn one tab's terminals into stash items, or say why the tab has to stay open. */
-function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: ReturnType<typeof livePis>, force: boolean): Classified {
+function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: ReturnType<typeof livePis>, force: boolean, fresh = false): Classified {
 	const title = stripGlyph(tab.name);
+	const waiting = new Set(load().groups.flatMap((g) => g.items.filter((i) => i.status === "pending").map((i) => i.terminalId)));
+	if (tab.terminals.some((t) => waiting.has(t.id))) return { title, tabItems: [], skip: "already stashing" };
 	const tabItems: Item[] = [];
 	let skip: string | null = null;
 	for (const term of tab.terminals) {
 		const fg = foreground(term.tty, procs, live);
 		const base = { id: newId("i"), title, cwd: term.cwd, tabKey: tab.id, terminalId: term.id };
 		if (fg.kind === "shell") tabItems.push({ ...base, kind: "shell", status: "stashed", title: displayCwd(term.cwd) });
-		else if (fg.kind === "ssh") tabItems.push({ ...base, kind: "ssh", status: "stashed", command: fg.command });
-		else if (fg.kind === "pi") {
+		else if (fg.kind === "ssh") {
+			const r = remoteAgent(fg.pid, fg.command, term.cwd, fresh);
+			if (r.skip) skip = r.skip;
+			else if (r.live) {
+				const a = r.live;
+				tabItems.push({ ...base, kind: a.kind, status: "pending", cwd: a.cwd,
+					title: a.name ?? `${a.kind} on ${r.remote.host}: ${a.cwd}`, name: a.name ?? undefined,
+					sessionId: a.sessionId, sessionFile: a.sessionFile ?? undefined, pid: a.pid, identity: a.identity, remote: r.remote });
+			} else if (r.cwd) tabItems.push({ ...base, kind: "shell", status: "stashed", cwd: r.cwd,
+				title: `${r.remote.host}: ${r.cwd}`, remote: r.remote });
+			else skip = "SSH helper returned no terminal";
+		}
+		else if (fg.kind === "pi" || fg.kind === "claude" || fg.kind === "codex") {
 			tabItems.push({
 				...base,
-				kind: "pi",
+				kind: fg.kind,
 				status: "pending",
 				cwd: fg.live.cwd,
 				// An unnamed pi's tab title is just its folder name; say what it is.
-				title: fg.live.name ? stripGlyph(fg.live.name) : `pi in ${displayCwd(fg.live.cwd)}`,
+				title: fg.live.name ? stripGlyph(fg.live.name) : `${fg.kind} in ${displayCwd(fg.live.cwd)}`,
 				name: fg.live.name ?? undefined,
 				sessionId: fg.live.sessionId,
 				sessionFile: fg.live.sessionFile ?? undefined,
 				pid: fg.pid,
+				identity: fg.live.identity,
 			});
 		} else if (fg.kind === "pi-unregistered") {
 			skip = "pi needs /reload-all";
+		} else if (fg.kind === "agent-unregistered") {
+			skip = fg.agent === "codex" ? "Codex needs trusted /hooks and --no-daemon" : "Claude Code needs oneterm hooks";
 		} else if (force) {
 			tabItems.push({ ...base, kind: "command", status: "stashed", command: fg.command });
 		} else {
@@ -154,7 +171,7 @@ export function stash(opts: StashOptions): StashResult {
 	const requests: { pid: number; item: Item }[] = [];
 
 	for (const tab of chosen) {
-		const { title, tabItems, skip } = classifyTab(tab, procs, live, Boolean(opts.force));
+		const { title, tabItems, skip } = classifyTab(tab, procs, live, Boolean(opts.force), true);
 		if (skip) {
 			result.skipped.push({ title, reason: skip });
 			continue;
@@ -184,8 +201,17 @@ export function stash(opts: StashOptions): StashResult {
 
 	const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	for (const { pid, item } of requests) {
-		rmSync(join(ACK_DIR, `${pid}.json`), { force: true });
-		writeAtomic(join(REQUEST_DIR, `${pid}.json`), JSON.stringify({ groupId: group.id, itemId: item.id, timeoutMs }));
+		if (item.remote || item.kind !== "pi") {
+			try { requestAgent(item, group.id, timeoutMs); }
+			catch {
+				update((s) => { const g = s.groups.find((g) => g.id === group.id); if (g) g.items = g.items.filter((i) => i.id !== item.id); });
+				result.pending = result.pending.filter((t) => t !== item.title);
+				result.skipped.push({ title: item.title, reason: "agent changed or helper unavailable; left open" });
+			}
+		} else {
+			rmSync(join(ACK_DIR, `${pid}.json`), { force: true });
+			writeAtomic(join(REQUEST_DIR, `${pid}.json`), JSON.stringify({ groupId: group.id, itemId: item.id, timeoutMs, sessionId: item.sessionId, identity: item.identity, expiresAt: Date.now() / 1000 + timeoutMs / 1000 }));
+		}
 	}
 	if (requests.length) spawnReaper(group.id, timeoutMs);
 	closeTerminals(closeNow);
@@ -212,8 +238,8 @@ interface Ack {
 }
 
 /**
- * Background half of a stash: wait for each pi to acknowledge and exit, record its
- * snapshot, and close its terminal. A pi that never exits keeps its tab and leaves the list.
+ * Background half of a stash: wait for an exit or confirmed native thread end,
+ * record the acknowledgement, then close the terminal. Unconfirmed stops stay open.
  */
 export async function reap(groupId: string, timeoutMs: number) {
 	const deadline = Date.now() + timeoutMs + 20_000;
@@ -224,10 +250,26 @@ export async function reap(groupId: string, timeoutMs: number) {
 
 		const done: string[] = [];
 		const finished: { item: Item; ack: Ack | null }[] = [];
+		const failed = new Set<string>();
 		for (const item of pending) {
-			if (alive(item.pid!)) continue;
-			finished.push({ item, ack: readJson<Ack>(join(ACK_DIR, `${item.pid}.json`)) });
+			if (item.remote || item.kind !== "pi") {
+				try {
+					const p = pollAgent(item);
+					if (p.failed) { failed.add(item.id); continue; }
+					if (!p.done || !p.ack) continue;
+					if (p.ack.sessionFile && !agentFileExists({ ...item, sessionFile: p.ack.sessionFile })) { failed.add(item.id); continue; }
+					finished.push({ item, ack: p.ack as Ack });
+				} catch { continue; } // A network error is not proof of process exit.
+			} else {
+				if (alive(item.pid!)) continue;
+				finished.push({ item, ack: readJson<Ack>(join(ACK_DIR, `${item.pid}.json`)) });
+			}
 			done.push(item.terminalId!);
+		}
+		if (failed.size) {
+			update((s) => { const g = s.groups.find((g) => g.id === groupId); if (g) g.items = g.items.filter((i) => !failed.has(i.id)); });
+			for (const item of pending.filter((i) => failed.has(i.id))) { try { cancelAgent(item); } catch {} }
+			logHistory("reap-failed", { groupId, items: [...failed] });
 		}
 		if (finished.length) {
 			update((s) => {
@@ -237,8 +279,8 @@ export async function reap(groupId: string, timeoutMs: number) {
 					const target = g.items.find((i) => i.id === item.id);
 					if (!target) continue;
 					// pi writes nothing until the first message; like a blank browser tab, it isn't worth keeping.
-					const file = ack?.sessionFile ?? target.sessionFile;
-					if (!file || !existsSync(file)) {
+					const file = ack ? ack.sessionFile : target.sessionFile;
+					if (!file || (!target.remote && !existsSync(file))) {
 						g.items = g.items.filter((i) => i !== target);
 						continue;
 					}
@@ -253,9 +295,13 @@ export async function reap(groupId: string, timeoutMs: number) {
 						target.interrupted = ack.interrupted || undefined;
 					}
 					delete target.pid;
+					delete target.identity;
 				}
 			});
-			for (const { item } of finished) rmSync(join(ACK_DIR, `${item.pid}.json`), { force: true });
+			for (const { item } of finished) {
+				if (item.remote || item.kind !== "pi") { try { cancelAgent(item); } catch {} }
+				else rmSync(join(ACK_DIR, `${item.pid}.json`), { force: true });
+			}
 			closeTerminals(done);
 		}
 
@@ -265,7 +311,10 @@ export async function reap(groupId: string, timeoutMs: number) {
 				const g = s.groups.find((x) => x.id === groupId);
 				if (g) g.items = g.items.filter((i) => i.status !== "pending");
 			});
-			for (const item of pending) rmSync(join(REQUEST_DIR, `${item.pid}.json`), { force: true });
+			for (const item of pending) {
+				if (item.remote || item.kind !== "pi") { try { cancelAgent(item); } catch {} }
+				else rmSync(join(REQUEST_DIR, `${item.pid}.json`), { force: true });
+			}
 			logHistory("reap-timeout", { groupId, items: pending.map((i) => i.id) });
 			return;
 		}

@@ -1,7 +1,10 @@
 {
   "name": "oneterm",
   "version": "0.1.0",
-  "description": "OneTab for Ghostty tabs and pi sessions",
+  "description": "OneTab for Ghostty tabs and agent sessions",
+  "scripts": {
+    "test": "node --test test/*.test.ts && python3 -m unittest discover -s test -p '*_test.py' -v"
+  },
   "type": "module",
   "private": true,
   "license": "MIT",

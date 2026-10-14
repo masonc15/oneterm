@@ -11,7 +11,7 @@ const MARKDOWN_FILE = join(HOME, "stash.md");
 const HISTORY_FILE = join(HOME, "history.jsonl");
 const LOCK_DIR = join(HOME, "stash.lock");
 
-export type ItemKind = "pi" | "shell" | "ssh" | "command";
+export type ItemKind = "pi" | "claude" | "codex" | "shell" | "ssh" | "command";
 export type ItemStatus = "pending" | "stashed";
 
 export interface Item {
@@ -28,9 +28,12 @@ export interface Item {
 	name?: string;
 	lastUser?: string;
 	lastAssistant?: string;
-	/** pi was mid-task and stopped at a safe point; it may need "continue" after resuming. */
+	/** The agent was mid-task and stopped at a safe point; say "continue" after resuming. */
 	interrupted?: boolean;
 	pid?: number;
+	/** Process birth token, checked before any native or remote stop. */
+	identity?: string;
+	remote?: { host: string; argv: string[]; localCwd: string };
 	terminalId?: string;
 }
 
@@ -51,9 +54,11 @@ export interface Config {
 	tabCap: number;
 	/** While still over the cap, nudge again after this many minutes. */
 	nudgeRepeatMinutes: number;
+	/** SSH aliases on which the oneterm helper is installed. */
+	remoteHosts: string[];
 }
 
-const DEFAULT_CONFIG: Config = { tabCap: 6, nudgeRepeatMinutes: 30 };
+const DEFAULT_CONFIG: Config = { tabCap: 6, nudgeRepeatMinutes: 30, remoteHosts: [] };
 
 /** Settings from ~/.oneterm/config.json, with defaults for anything missing. */
 export function config(): Config {
@@ -62,6 +67,7 @@ export function config(): Config {
 	return {
 		tabCap: num(raw.tabCap, DEFAULT_CONFIG.tabCap),
 		nudgeRepeatMinutes: num(raw.nudgeRepeatMinutes, DEFAULT_CONFIG.nudgeRepeatMinutes),
+		remoteHosts: Array.isArray(raw.remoteHosts) ? raw.remoteHosts.filter((h): h is string => typeof h === "string" && /^[\w@.-]+$/.test(h)) : [],
 	};
 }
 
@@ -138,9 +144,18 @@ export function findItem(stash: Stash, itemId: string): { group: Group; item: It
 }
 
 export function restoreCommand(item: Item): string | undefined {
-	if (item.kind === "pi" && item.sessionFile) return `pi --session ${shellQuote(item.sessionFile)}`;
-	if (item.kind === "ssh" || item.kind === "command") return item.command;
-	return undefined;
+	let command: string | undefined;
+	if (item.kind === "pi" && item.sessionFile) command = `pi --session ${shellQuote(item.sessionFile)}`;
+	else if (item.kind === "claude" && item.sessionId) command = `claude --resume ${shellQuote(item.sessionId)}`;
+	else if (item.kind === "codex" && item.sessionId) command = `codex --no-daemon resume ${shellQuote(item.sessionId)}`;
+	else if (item.kind === "ssh" || item.kind === "command") command = item.command;
+	if (item.remote) {
+		// Login shell supplies the remote agent's PATH, even on hosts with lazy initialization.
+		const body = `export PATH="$HOME/.local/bin:$PATH"; cd -- ${shellQuote(item.cwd)} && ${command ? `exec ${command}` : 'exec "$SHELL" -l'}`;
+		const argv = item.remote.argv.filter((a) => a !== "-t" && a !== "-tt");
+		return `ssh -t ${argv.map(shellQuote).join(" ")} ${shellQuote(`bash -lc ${shellQuote(body)}`)}`;
+	}
+	return command;
 }
 
 export function shellQuote(s: string) {

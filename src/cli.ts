@@ -3,10 +3,10 @@ import { groupItemIds, move, remove, restore } from "./restore.ts";
 import { reap, type Scope, stash } from "./stash.ts";
 import { displayCwd, findItem, type Item, load, restoreCommand } from "./store.ts";
 
-const HELP = `oneterm: OneTab for Ghostty tabs and pi sessions
+const HELP = `oneterm: OneTab for Ghostty tabs and agent sessions
 
   oneterm stash [--all|--others|--this] [--force] [--note TEXT] [--dry-run]
-      Save tabs to the stash and close them. Busy pi sessions finish their
+      Save tabs to the stash and close them. Busy agent sessions finish their
       current step first. Tabs running other programs stay open unless --force.
   oneterm restore            Pick stashed terminals with fzf (Tab to multi-select)
   oneterm restore ID...      Restore items by id; g-prefixed ids restore a whole group
@@ -34,7 +34,7 @@ function expandIds(ids: string[]) {
 	return ids.flatMap((id) => (id.startsWith("g") ? groupItemIds(id) : [id]));
 }
 
-const kindLabel: Record<Item["kind"], string> = { pi: "π", shell: "$", ssh: "⇄", command: "▸" };
+const kindLabel: Record<Item["kind"], string> = { pi: "π", claude: "C", codex: "X", shell: "$", ssh: "⇄", command: "▸" };
 
 function itemLine(item: Item, createdAt: string) {
 	const when = new Date(createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -66,7 +66,7 @@ function preview(id: string) {
 	if (cmd) out.push(`$ ${cmd}`, "");
 	if (item.interrupted) out.push("Stopped mid-task at a safe point; say \"continue\" after resuming.", "");
 	if (item.lastUser) out.push(`You: ${item.lastUser}`, "");
-	if (item.lastAssistant) out.push(`pi: ${item.lastAssistant}`);
+	if (item.lastAssistant) out.push(`${item.kind}: ${item.lastAssistant}`);
 	console.log(out.join("\n"));
 }
 
@@ -128,7 +128,7 @@ async function main() {
 			if (json) return console.log(JSON.stringify(r));
 			const n = r.stashed.length + r.pending.length;
 			const parts = [n ? `${dryRun ? "Would stash" : "Stashed"} ${n} terminal${n === 1 ? "" : "s"}` : "Nothing to stash"];
-			if (r.pending.length) parts.push(`${r.pending.length} pi finishing current step`);
+			if (r.pending.length) parts.push(`${r.pending.length} agents finishing current step`);
 			const reasons = new Map<string, number>();
 			for (const s of r.skipped) reasons.set(s.reason, (reasons.get(s.reason) ?? 0) + 1);
 			for (const [reason, count] of reasons) parts.push(`kept ${count} open: ${reason}`);

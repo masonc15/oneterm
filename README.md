@@ -50,7 +50,7 @@ The `raycast/` scripts add "Stash Ghostty Tabs", "Stash Other Ghostty Tabs", and
 
 ## Install
 
-Requires Ghostty 1.3+ (for AppleScript), Node 22.18+ (oneterm runs its TypeScript directly), and fzf for the picker.
+Requires Ghostty 1.3+, Node 22.18+, Python 3.9+ for native and SSH hooks, and fzf for the picker. Native hooks were tested with Claude Code 2.1.296 and Codex 0.162.1.
 
 ```sh
 pi install ~/workspace/oneterm                      # the pi extension
@@ -63,8 +63,31 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.colin.oneterm-agent.
 
 The hub and the agent share a token: `ONETERM_TOKEN` in devbox's `~/docker/oneterm/.env` and `{"url", "token"}` in `~/.oneterm/hub.json` here (both mode 600). `deploy-hub.sh` rsyncs `src/hub.ts`, `web/index.html` and the `hub/` Docker files to devbox and rebuilds; it never touches the hub's `data/` or `.env`.
 
-pi sessions that were already running before the install don't have the extension yet and are left open by a stash; run `/reload-all` in any pi tab to load it everywhere.
+Install native hooks without replacing existing hooks:
+
+```sh
+python3 support/agents.py --install
+```
+
+This merges oneterm's handlers into `~/.claude/settings.json` and `~/.codex/hooks.json`, with backups in `~/.oneterm/backups/`. In Codex, open `/hooks` and review and trust the oneterm handlers. Trust remains required; oneterm does not bypass it. New or resumed sessions load the hooks. An unregistered agent stays open.
+
+Codex must run with `--no-daemon`. A shared server does not give these hooks a trustworthy terminal-to-session mapping. The installed shell wrappers on this Mac and devbox add the flag to interactive calls, resumes, and forks only; Desktop, exec, updates, and app-server commands keep their previous behavior. In an already-open shell, reload the shell config or pass `--no-daemon` explicitly. Existing daemon-backed sessions stay open.
+
+For devbox:
+
+```sh
+ssh devbox 'mkdir -p ~/.oneterm ~/.pi/agent/extensions'
+scp support/agents.py devbox:.oneterm/agents.py
+scp extension/oneterm.ts devbox:.pi/agent/extensions/oneterm.ts
+ssh devbox 'python3 ~/.oneterm/agents.py --install'
+```
+
+Add `"remoteHosts": ["devbox"]` to the Mac's `~/.oneterm/config.json`. Review Codex's hooks on devbox too. Remote stashing is driven from the Mac; `/oneterm` is a local Ghostty command.
+
+Already-running pi sessions need `/reload-all` to load the extension. Until then they stay open.
 
 ## Files
 
-Everything lives in `~/.oneterm`: `stash.json` is the list, `stash.md` is a readable copy of it, `live/` holds one file per running pi (pid to session file), and `requests/` and `acks/` are how the CLI and the pi extension hand off a stash. Set `ONETERM_HOME` to use another directory. The hub keeps its copy of the stash and the click queue in `~/docker/oneterm/data/hub.json` on devbox.
+Everything lives in `~/.oneterm`: `stash.json` is the list, `stash.md` its readable copy, `live/` the pi registrations, and `native/` the Claude Code and Codex registrations. `requests/` and `acks/` carry the safe-stop handoff. Set `ONETERM_HOME` to use a separate directory. The hub keeps its copy and click queue in `~/docker/oneterm/data/hub.json` on devbox.
+
+Run `npm test` for resume, SSH parsing, foreground classification, hook state, parallel tools, request expiry, and process-identity tests. Live testing uses disposable tabs and a separate `ONETERM_HOME`; never use `stash --all` against real sessions as a test.

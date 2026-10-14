@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { type OpenSpec, openTabs } from "./ghostty.ts";
 import { type Item, load, logHistory, restoreCommand, update } from "./store.ts";
+import { agentFileExists } from "./agents.ts";
 
 export interface RestoreResult {
 	restored: string[];
@@ -9,10 +10,11 @@ export interface RestoreResult {
 }
 
 function spec(item: Item): OpenSpec {
-	const cwd = existsSync(item.cwd) ? item.cwd : homedir();
+	const localCwd = item.remote?.localCwd ?? item.cwd;
+	const cwd = existsSync(localCwd) ? localCwd : homedir();
 	const cmd = restoreCommand(item);
 	if (!cmd) return { cwd };
-	// Programs other than pi and ssh are typed but not run; press Enter if you still want them.
+	// Forced generic commands are typed but not run; agents and SSH resume normally.
 	return { cwd, input: item.kind === "command" ? cmd : `${cmd}\n` };
 }
 
@@ -26,7 +28,7 @@ export function restore(itemIds: string[]): RestoreResult {
 
 	const byTab = new Map<string, Item[]>();
 	for (const item of picked) {
-		if (item.kind === "pi" && (!item.sessionFile || !existsSync(item.sessionFile))) {
+		if (["pi", "claude", "codex"].includes(item.kind) && !agentFileExists(item)) {
 			result.missing.push(item.title);
 			continue;
 		}

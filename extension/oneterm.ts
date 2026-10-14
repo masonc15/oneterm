@@ -15,7 +15,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { type FSWatcher, mkdirSync, readFileSync, renameSync, rmSync, watch, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -27,11 +27,18 @@ const ACK_DIR = join(HOME, "acks");
 const DEFAULT_TIMEOUT_MS = 120_000;
 const SNIPPET_CHARS = 280;
 const CLI = join(homedir(), "workspace", "oneterm", "bin", "oneterm");
+const PROC_STAT = process.platform === "linux" ? readFileSync(`/proc/${process.pid}/stat`, "utf8") : null;
+const PROCESS_IDENTITY = PROC_STAT
+	? PROC_STAT.slice(PROC_STAT.lastIndexOf(")") + 1).trim().split(/\s+/)[19]
+	: execFileSync("ps", ["-p", String(process.pid), "-o", "lstart="], { encoding: "utf8" }).trim();
 
 interface StashRequest {
 	groupId: string;
 	itemId: string;
 	timeoutMs?: number;
+	sessionId?: string;
+	identity?: string;
+	expiresAt?: number;
 }
 
 function writeAtomic(path: string, data: unknown) {
@@ -81,6 +88,7 @@ export default function oneterm(pi: ExtensionAPI) {
 		mkdirSync(LIVE_DIR, { recursive: true });
 		writeAtomic(livePath, {
 			pid: process.pid,
+			identity: PROCESS_IDENTITY,
 			sessionId: ctx.sessionManager.getSessionId(),
 			sessionFile: ctx.sessionManager.getSessionFile() ?? null,
 			cwd: ctx.sessionManager.getCwd(),
@@ -120,6 +128,9 @@ export default function oneterm(pi: ExtensionAPI) {
 		} catch {
 			return;
 		}
+		if ((request.sessionId && request.sessionId !== ctx.sessionManager.getSessionId()) ||
+			(request.identity && request.identity !== PROCESS_IDENTITY) ||
+			(request.expiresAt && request.expiresAt < Date.now() / 1000)) return;
 		const idle = ctx.isIdle() && !promptOpen;
 		const timeoutMs = request.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 		const timer = setTimeout(() => {
