@@ -1,7 +1,7 @@
 {
   "name": "oneterm",
   "version": "0.1.0",
-  "description": "OneTab for Ghostty tabs and agent sessions",
+  "description": "OneTab for Ghostty. Stash your tabs and their pi, Claude Code, and Codex sessions, then reopen them later.",
   "scripts": {
     "test": "node --test test/*.test.ts && python3 -m unittest discover -s test -p '*_test.py' -v"
   },
