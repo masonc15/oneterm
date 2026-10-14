@@ -1,0 +1,24 @@
+{
+  "name": "oneterm",
+  "version": "0.1.0",
+  "description": "OneTab for Ghostty tabs and pi sessions",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "author": "Colin Mason",
+  "bin": {
+    "oneterm": "bin/oneterm"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension"
+  ],
+  "pi": {
+    "extensions": [
+      "./extension/oneterm.ts"
+    ]
+  }
+}
