@@ -74,6 +74,9 @@
   .pop .k { flex: none; width: 20px; height: 18px; border-radius: 4px; display: grid; place-items: center;
     font: 500 11px/1 var(--mono); background: #efeee9; color: var(--ink-2); }
   .pop .k.pi { background: var(--accent-soft); color: var(--accent); font: 700 12px/1 var(--display); }
+  /* Clawd's pixels land on whole pixels at 16px. */
+  .pop .k svg, .kind.claude svg { width: 16px; height: 16px; }
+  .pop .k.codex svg { width: 17px; height: 17px; }
   .pop .reason { margin: 2px 0 2px; color: var(--warn); font-weight: 500; }
   .pop .reason + ul li { padding-left: 4px; color: var(--ink-2); }
   .pop .reason + ul li::before { content: "·"; color: var(--ink-3); }
@@ -123,6 +126,9 @@
     font: 500 13px/1 var(--mono); background: #efeee9; color: var(--ink-2);
   }
   .kind.pi { background: var(--accent-soft); color: var(--accent); font-family: var(--display); font-weight: 700; font-size: 14px; }
+  .kind.codex svg { width: 19px; height: 19px; }
+  .kind.claude, .pop .k.claude { background: #fbeee8; }
+  .kind.codex, .pop .k.codex { background: #eceefe; }
   .line1 { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
   .title { font-weight: 500; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   button.title:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
@@ -173,6 +179,12 @@
 </style>
 </head>
 <body>
+<!-- Claude Code's Clawd and the Codex mark, from LobeHub Icons (MIT): https://github.com/lobehub/lobe-icons -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs><linearGradient id="mk-codex-fill" gradientUnits="userSpaceOnUse" x1="12" x2="12" y1="3" y2="21"><stop stop-color="#B1A7FF"/><stop offset=".5" stop-color="#7A9DFF"/><stop offset="1" stop-color="#3941FF"/></linearGradient></defs>
+  <symbol id="mk-claude" viewBox="0 0 24 24"><path clip-rule="evenodd" d="M20.998 10.949H24v3.102h-3v3.028h-1.487V20H18v-2.921h-1.487V20H15v-2.921H9V20H7.488v-2.921H6V20H4.487v-2.921H3V14.05H0V10.95h3V5h17.998v5.949zM6 10.949h1.488V8.102H6v2.847zm10.51 0H18V8.102h-1.49v2.847z" fill="#D97757" fill-rule="evenodd" shape-rendering="crispEdges"/></symbol>
+  <symbol id="mk-codex" viewBox="0 0 24 24"><path d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388zm3.482 10.565a.637.637 0 000 1.272h3.636a.637.637 0 100-1.272h-3.636zM8.462 9.23a.637.637 0 00-1.106.631l1.272 2.224-1.266 2.136a.636.636 0 101.095.649l1.454-2.455a.636.636 0 00.005-.64L8.462 9.23z" fill="url(#mk-codex-fill)"/></symbol>
+</svg>
 <div class="wrap">
   <header>
     <div class="mark">
@@ -206,7 +218,20 @@
 
 <script>
 const OLDER_THAN_DAYS = 14;
-const KIND = { pi: "π", claude: "C", codex: "X", shell: "$", ssh: "⇄", command: "▸" };
+const KIND = { pi: "π", shell: "$", ssh: "⇄", command: "▸" };
+const KIND_NAME = { pi: "pi", claude: "Claude Code", codex: "Codex", shell: "Shell", ssh: "SSH", command: "Command" };
+
+/** The badge for a kind of terminal: a brand mark for Claude Code and Codex, a glyph otherwise. */
+function mark(kind) {
+  if (kind !== "claude" && kind !== "codex") return KIND[kind] || "?";
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS(ns, "use");
+  use.setAttribute("href", `#mk-${kind}`);
+  svg.append(use);
+  return svg;
+}
 const list = document.getElementById("list");
 let lastJson = "";
 
@@ -292,7 +317,7 @@ function itemRow(item, prev) {
         document.body.classList.add("drag-active");
       },
       ondragend: (e) => { e.currentTarget.classList.remove("dragging"); endDrag(); } },
-    el("span", { class: `kind ${item.kind}`, title: item.kind }, KIND[item.kind] || "?"),
+    el("span", { class: `kind ${item.kind}`, title: KIND_NAME[item.kind] || item.kind }, mark(item.kind)),
     el("div", { class: "line1" }, title, item.title === item.cwdShort ? null : el("span", { class: "cwd", title: item.cwd }, `${item.remote ? item.remote.host + ": " : ""}${item.cwdShort}`), chips),
     second,
     pending ? null : el("button", { class: "del", title: "Delete without restoring", "aria-label": `Delete ${item.title}`,
@@ -388,7 +413,7 @@ function showPop(which) {
   const nodes = [];
   if (c.stash.length) {
     nodes.push(el("h3", {}, `Will be stashed · ${c.stash.length}`),
-      el("ul", {}, c.stash.map((t) => el("li", {}, el("span", { class: `k ${t.kind}` }, KIND[t.kind] || "?"), el("span", { title: t.title }, t.title)))));
+      el("ul", {}, c.stash.map((t) => el("li", {}, el("span", { class: `k ${t.kind}`, title: KIND_NAME[t.kind] }, mark(t.kind)), el("span", { title: t.title }, t.title)))));
   } else {
     nodes.push(el("h3", {}, "Nothing to stash"));
   }
@@ -527,7 +552,7 @@ function renderPicker() {
   const row = (t) => el("label", { class: `row${t.kept ? " kept" : ""}`, "data-key": t.key, title: t.kept ? `${t.title}: stays open (${keptLabel(t.kept)})` : t.title },
     el("input", { type: "checkbox", checked: picking.has(t.key), disabled: Boolean(t.kept),
       onchange: (e) => { e.target.checked ? picking.add(t.key) : picking.delete(t.key); renderPicker(); } }),
-    el("span", { class: `k ${t.kept ? "" : t.kind}` }, t.kept ? "–" : KIND[t.kind] || "?"),
+    el("span", { class: `k ${t.kept ? "" : t.kind}`, title: t.kept ? undefined : KIND_NAME[t.kind] }, t.kept ? "–" : mark(t.kind)),
     el("span", { class: "t" }, t.title),
     t.front ? el("span", { class: "front", title: "The selected tab in Ghostty's front window" }, "in front") : null,
     t.kept ? el("span", { class: "why" }, keptLabel(t.kept)) : null);
