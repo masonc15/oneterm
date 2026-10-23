@@ -81,6 +81,18 @@
   .pop .fix code { font: 12px var(--mono); background: #ecebe6; padding: 0 4px; border-radius: 3px; }
   .pop > :last-child { margin-bottom: 0; }
   .tabs-note { cursor: default; }
+  .picker { width: 380px; padding: 12px 6px 8px; }
+  .picker h3 { padding: 0 8px; }
+  .picker .row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; min-width: 0; }
+  .picker .row:hover { background: #f6f5f1; }
+  .picker .row.kept { cursor: default; color: var(--ink-3); }
+  .picker .row.kept:hover { background: none; }
+  .picker input { flex: none; margin: 0; width: 15px; height: 15px; accent-color: var(--accent); }
+  .picker .t { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .picker .front { flex: none; font-size: 11.5px; padding: 1px 7px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }
+  .picker .why { flex: none; max-width: 45%; font-size: 12px; color: var(--warn); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .picker .foot { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 10px 8px 2px; border-top: 1px solid var(--rule); font-size: 13.5px; }
+  .picker .foot .btn { margin-left: auto; }
   li.item[draggable="true"] { cursor: grab; }
   li.item.dragging { opacity: .4; }
   li.item.drop-before { box-shadow: inset 0 3px 0 -1px var(--accent); }
@@ -152,6 +164,8 @@
     .wrap { padding: 0 16px 64px; }
     header { flex-wrap: wrap; } .actions { margin-left: 0; } .cwd { display: none; }
     .mac { display: flex; margin-left: 0; margin-top: 2px; }
+    .pop { left: 0; right: auto; max-width: calc(100vw - 32px); }
+    .tabs-note { text-align: left; }
     .line1 { flex-wrap: wrap; row-gap: 4px; }
     .title { white-space: normal; }
     .line2 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -176,11 +190,12 @@
     <div class="actions">
       <div class="stash-box" id="stash-box">
         <div style="display:flex; gap:8px">
-          <button class="btn" id="stash-others" title="Stash every Ghostty tab except the one in front">Stash other tabs <span class="badge"></span></button>
+          <button class="btn" id="choose" aria-haspopup="dialog" aria-expanded="false" aria-controls="picker">Choose tabs…</button>
           <button class="btn primary" id="stash-all" title="Stash every Ghostty tab">Stash all tabs <span class="badge"></span></button>
         </div>
         <div class="tabs-note" id="tabs-note"></div>
         <div class="pop" id="pop" role="tooltip"></div>
+        <div class="pop picker" id="picker" role="dialog" aria-label="Choose tabs to stash"></div>
       </div>
     </div>
   </header>
@@ -360,7 +375,12 @@ const FIX = {
   "pi needs /reload-all": ["Started before oneterm was installed.", "Run /reload-all in any pi tab."],
 };
 
+function keptLabel(reason) {
+  return reason.startsWith("running ") ? `Running ${reason.slice(8)}` : FIX[reason] ? "pi without oneterm" : reason;
+}
+
 function showPop(which) {
+  if (picking) return;
   const pop = document.getElementById("pop");
   const c = lastTabs?.[which];
   popFor = which;
@@ -378,8 +398,7 @@ function showPop(which) {
     for (const k of c.kept) byReason.set(k.reason, [...(byReason.get(k.reason) || []), k.title]);
     for (const [reason, titles] of byReason) {
       const fix = FIX[reason];
-      const label = reason.startsWith("running ") ? `Running ${reason.slice(8)}` : fix ? "pi without oneterm" : reason;
-      nodes.push(el("div", { class: "reason" }, label));
+      nodes.push(el("div", { class: "reason" }, keptLabel(reason)));
       nodes.push(el("ul", {}, titles.map((t) => el("li", {}, el("span", { title: t }, t)))));
       if (fix) {
         const [why, how] = fix;
@@ -401,16 +420,17 @@ function renderMac(mac, tabs) {
   const node = document.getElementById("mac");
   node.className = `mac${mac.online ? " on" : ""}`;
   node.textContent = mac.online ? "Mac online" : mac.seenAt ? `Mac offline · seen ${ago(new Date(mac.seenAt).toISOString())}` : "Mac never connected";
-  const counts = { "stash-all": tabs?.all, "stash-others": tabs?.others };
-  for (const id of ["stash-all", "stash-others"]) {
-    const btn = document.getElementById(id);
-    const c = mac.online ? counts[id] : null;
-    btn.querySelector(".badge").textContent = c ? String(c.tabs) : "";
-    btn.disabled = !mac.online || btn.dataset.busy === "1" || (c && c.tabs === 0);
-    btn.title = !mac.online ? "The Mac is offline" : !c ? btn.dataset.title : "";
-  }
+  const all = document.getElementById("stash-all");
+  const c = mac.online ? tabs?.all : null;
+  all.querySelector(".badge").textContent = c ? String(c.tabs) : "";
+  all.disabled = !mac.online || all.dataset.busy === "1" || (c && c.tabs === 0);
+  all.title = !mac.online ? "The Mac is offline" : !c ? all.dataset.title : "";
+  const choose = document.getElementById("choose");
+  choose.disabled = !mac.online || choose.dataset.busy === "1" || !tabs?.list?.length;
+  choose.title = !mac.online ? "The Mac is offline" : "Pick which Ghostty tabs to stash";
   lastTabs = mac.online ? tabs : null;
   if (popFor) showPop(popFor);
+  if (picking) renderPicker();
   const kept = mac.online && tabs ? tabs.all.kept.length : 0;
   const over = mac.online && tabs && tabs.cap > 0 && tabs.open > tabs.cap;
   const note = document.getElementById("tabs-note");
@@ -460,35 +480,91 @@ async function refresh(force) {
   }
 }
 
-for (const [id, scope] of [["stash-all", "all"], ["stash-others", "others"]]) {
-  document.getElementById(id).addEventListener("click", async (e) => {
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    btn.dataset.busy = "1";
-    await act("/api/stash", { scope }, (r) => {
-      const n = r.stashed.length + r.pending.length;
-      const parts = [n ? `Stashed ${plural(n, "terminal")}` : "Nothing to stash"];
-      if (r.pending.length) parts.push(`${r.pending.length} finishing current step`);
-      if (r.skipped.length) parts.push(`kept open: ${r.skipped.map((s) => s.title).join(", ")}`);
-      return parts.join(" · ");
-    });
-    delete btn.dataset.busy;
-    refresh(true);
-  });
+function stashedText(r) {
+  const n = r.stashed.length + r.pending.length;
+  const parts = [n ? `Stashed ${plural(n, "terminal")}` : "Nothing to stash"];
+  if (r.pending.length) parts.push(`${r.pending.length} finishing current step`);
+  if (r.skipped.length) parts.push(`kept open: ${r.skipped.map((s) => s.title).join(", ")}`);
+  return parts.join(" · ");
 }
-for (const [id, which] of [["stash-all", "all"], ["stash-others", "others"]]) {
-  const btn = document.getElementById(id);
-  btn.dataset.title = btn.title;
-  btn.setAttribute("aria-describedby", "pop");
-  btn.addEventListener("mouseenter", () => showPop(which));
-  btn.addEventListener("focus", () => showPop(which));
-  btn.addEventListener("blur", hidePop);
-  btn.addEventListener("click", hidePop);
+
+async function stashWith(btn, data) {
+  btn.disabled = true;
+  btn.dataset.busy = "1";
+  await act("/api/stash", data, stashedText);
+  delete btn.dataset.busy;
+  refresh(true);
 }
+
+/** Keys of the tabs checked in the picker, or null while it's closed. */
+let picking = null;
+
+function openPicker() {
+  if (!lastTabs?.list) return;
+  hidePop();
+  picking = new Set(lastTabs.list.filter((t) => !t.kept).map((t) => t.key));
+  document.getElementById("choose").setAttribute("aria-expanded", "true");
+  renderPicker();
+  document.querySelector("#picker input:not([disabled])")?.focus();
+}
+
+function closePicker() {
+  if (!picking) return;
+  picking = null;
+  document.getElementById("choose").setAttribute("aria-expanded", "false");
+  document.getElementById("picker").classList.remove("show");
+}
+
+function renderPicker() {
+  const picker = document.getElementById("picker");
+  const rows = lastTabs?.list;
+  if (!rows) return closePicker();
+  // Tabs that closed or became unstashable since the last look drop out; new ones start unchecked.
+  for (const key of picking) if (!rows.some((t) => t.key === key && !t.kept)) picking.delete(key);
+  const focused = document.activeElement?.closest?.("#picker [data-key]")?.dataset.key;
+  const open = rows.filter((t) => !t.kept);
+  const n = picking.size;
+  const row = (t) => el("label", { class: `row${t.kept ? " kept" : ""}`, "data-key": t.key, title: t.kept ? `${t.title}: stays open (${keptLabel(t.kept)})` : t.title },
+    el("input", { type: "checkbox", checked: picking.has(t.key), disabled: Boolean(t.kept),
+      onchange: (e) => { e.target.checked ? picking.add(t.key) : picking.delete(t.key); renderPicker(); } }),
+    el("span", { class: `k ${t.kept ? "" : t.kind}` }, t.kept ? "–" : KIND[t.kind] || "?"),
+    el("span", { class: "t" }, t.title),
+    t.front ? el("span", { class: "front", title: "The selected tab in Ghostty's front window" }, "in front") : null,
+    t.kept ? el("span", { class: "why" }, keptLabel(t.kept)) : null);
+  const every = open.length > 0 && n === open.length;
+  const go = el("button", { class: "btn primary", disabled: n === 0,
+    onclick: () => { const picked = [...picking]; closePicker(); stashWith(document.getElementById("choose"), { picked }); } },
+    n ? `Stash ${plural(n, "tab")}` : "Stash");
+  picker.replaceChildren(
+    el("h3", {}, `Open in Ghostty · ${rows.length}`),
+    ...rows.map(row),
+    el("div", { class: "foot" },
+      open.length > 1 ? el("button", { class: "link", onclick: () => { picking = new Set(every ? [] : open.map((t) => t.key)); renderPicker(); } },
+        every ? "Select none" : "Select all") : null,
+      go));
+  picker.classList.add("show");
+  if (focused) picker.querySelector(`[data-key="${CSS.escape(focused)}"] input`)?.focus();
+}
+
+const stashAll = document.getElementById("stash-all");
+stashAll.addEventListener("click", () => stashWith(stashAll, { scope: "all" }));
+stashAll.dataset.title = stashAll.title;
+stashAll.setAttribute("aria-describedby", "pop");
+stashAll.addEventListener("mouseenter", () => showPop("all"));
+stashAll.addEventListener("focus", () => showPop("all"));
+stashAll.addEventListener("blur", hidePop);
+stashAll.addEventListener("click", hidePop);
+document.getElementById("choose").addEventListener("click", () => (picking ? closePicker() : openPicker()));
+// composedPath, not contains: a click that re-renders the picker has already detached its target.
+document.addEventListener("click", (e) => { if (picking && !e.composedPath().some((n) => n.id === "stash-box")) closePicker(); });
 // Over the gap or the note, keep showing whichever popover is open; on touch, tap the note.
 document.getElementById("stash-box").addEventListener("mouseleave", hidePop);
 document.getElementById("tabs-note").addEventListener("click", () => (popFor ? hidePop() : showPop("all")));
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") hidePop(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (picking) { closePicker(); document.getElementById("choose").focus(); }
+  hidePop();
+});
 
 refresh(true);
 setInterval(() => { if (!document.hidden) refresh(false); }, 2000);
