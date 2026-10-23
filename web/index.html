@@ -166,6 +166,8 @@
   }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
   @media (prefers-reduced-motion: reduce) { .toast { transition: none; } .chip.wait::before { animation: none; } }
+  /* The page reads best at 90% on a desktop; phones keep full size. */
+  @media (min-width: 641px) { html { zoom: 0.9; } }
   @media (max-width: 640px) {
     .wrap { padding: 0 16px 64px; }
     header { flex-wrap: wrap; } .actions { margin-left: 0; } .cwd { display: none; }
