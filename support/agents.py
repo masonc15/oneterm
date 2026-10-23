@@ -14,6 +14,7 @@ import time
 HOME = Path(os.environ.get('ONETERM_HOME', Path.home() / '.oneterm'))
 NATIVE = HOME / 'native'
 SHELLS = {'zsh', 'bash', 'fish', 'sh', 'dash', 'nu'}
+LINUX = sys.platform.startswith('linux')
 UUID = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 # Resume writes its settings to the transcript at startup; a turn writes again later.
 RESUME_QUIET_SECONDS = 10
@@ -278,9 +279,32 @@ def connection_of(pid, procs):
     return None
 
 
+def sshd_of(connection):
+    """This user's sshd processes holding a client connection, for hosts that hide other
+    processes' environments (macOS)."""
+    host, port = connection
+    address = '[%s]' % host if ':' in host else host
+    out = subprocess.run(['lsof', '-nP', '-a', '-u', str(os.getuid()), '-iTCP@%s:%s' % (address, port), '-sTCP:ESTABLISHED', '-Fp'],
+                         capture_output=True, text=True).stdout
+    return {int(line[1:]) for line in out.splitlines() if line.startswith('p')}
+
+
+def under(pid, ancestors, procs):
+    while pid in procs:
+        if pid in ancestors:
+            return True
+        pid = procs[pid]['ppid']
+    return False
+
+
 def probe(connection):
     procs = processes()
-    matched = [p for p in procs.values() if p['tty'] not in {'?', '??', '-'} and connection_of(p['pid'], procs) == connection]
+    if LINUX:
+        mine = lambda p: connection_of(p['pid'], procs) == connection
+    else:
+        sshd = sshd_of(connection)
+        mine = lambda p: under(p['pid'], sshd, procs)
+    matched = [p for p in procs.values() if p['tty'] not in {'?', '??', '-'} and mine(p)]
     ttys = {p['tty'] for p in matched}
     if len(ttys) != 1:
         return {'skip': 'SSH terminal could not be matched (multiplexing is not supported)'}
@@ -293,8 +317,8 @@ def probe(connection):
     if leader and Path(leader['args'].split()[0]).name.lstrip('-') in SHELLS and all(
             Path(p['args'].split()[0]).name.lstrip('-') in SHELLS for p in group):
         try:
-            return {'cwd': os.readlink('/proc/%s/cwd' % leader['pid'])}
-        except OSError:
+            return {'cwd': cwd_of(leader['pid'])}
+        except (OSError, subprocess.CalledProcessError, StopIteration):
             pass
     return {'skip': 'remote program needs oneterm hooks or is still running'}
 

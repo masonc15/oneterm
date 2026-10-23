@@ -110,11 +110,29 @@ class AgentTests(unittest.TestCase):
         live = [dict(pid=11, sessionId='one'), dict(pid=22, sessionId='two')]
         def connection(pid, _):
             return ['192.0.2.1', '111'] if pid == 11 else ['192.0.2.1', '222']
-        with patch.object(a, 'processes', return_value={11: one, 22: two}), patch.object(a, 'live', return_value=live), patch.object(a, 'connection_of', side_effect=connection):
+        with patch.object(a, 'LINUX', True), patch.object(a, 'processes', return_value={11: one, 22: two}), patch.object(a, 'live', return_value=live), patch.object(a, 'connection_of', side_effect=connection):
             self.assertEqual(a.probe(['192.0.2.1', '111'])['live']['sessionId'], 'one')
             self.assertEqual(a.probe(['192.0.2.1', '222'])['live']['sessionId'], 'two')
-        with patch.object(a, 'processes', return_value={11: one, 22: two}), patch.object(a, 'connection_of', return_value=['same', 'port']):
+        with patch.object(a, 'LINUX', True), patch.object(a, 'processes', return_value={11: one, 22: two}), patch.object(a, 'connection_of', return_value=['same', 'port']):
             self.assertIn('multiplexing', a.probe(['same', 'port'])['skip'])
+
+    def test_ssh_on_macos_matches_the_sshd_holding_the_connection(self):
+        procs = {
+            5: dict(pid=5, ppid=1, pgid=5, tpgid=-1, tty='??', args='sshd-session: user@ttys005'),
+            11: dict(pid=11, ppid=5, pgid=11, tpgid=12, tty='ttys005', args='-zsh'),
+            12: dict(pid=12, ppid=11, pgid=12, tpgid=12, tty='ttys005', args='claude'),
+            6: dict(pid=6, ppid=1, pgid=6, tpgid=-1, tty='??', args='sshd-session: user@ttys006'),
+            21: dict(pid=21, ppid=6, pgid=21, tpgid=22, tty='ttys006', args='-zsh'),
+            22: dict(pid=22, ppid=21, pgid=22, tpgid=22, tty='ttys006', args='codex'),
+        }
+        live = [dict(pid=12, sessionId='one'), dict(pid=22, sessionId='two')]
+        with patch.object(a, 'LINUX', False), patch.object(a, 'processes', return_value=procs), patch.object(a, 'live', return_value=live):
+            with patch.object(a, 'sshd_of', return_value={5}):
+                self.assertEqual(a.probe(['192.0.2.1', '111'])['live']['sessionId'], 'one')
+            with patch.object(a, 'sshd_of', return_value={6}):
+                self.assertEqual(a.probe(['192.0.2.1', '222'])['live']['sessionId'], 'two')
+            with patch.object(a, 'sshd_of', return_value=set()):
+                self.assertIn('multiplexing', a.probe(['192.0.2.1', '333'])['skip'])
 
     def test_idle_resume_is_identified_from_its_own_argv(self):
         sid = '01a13b62-053c-7661-8a2e-b85711209bd8'
