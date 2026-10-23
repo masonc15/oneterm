@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -84,6 +85,20 @@ class AgentTests(unittest.TestCase):
             finally:
                 child.terminate()
                 child.wait()
+
+    def test_codex_internal_session_cannot_replace_the_users(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            a.HOME = Path(tmp)
+            a.NATIVE = a.HOME / 'native'
+            owner = dict(pid=os.getpid())
+            def send(data):
+                event = dict(dict(hook_event_name='UserPromptSubmit', cwd='/work'), **data)
+                with patch.object(a, 'hook_owner', return_value=owner), patch.object(a.sys, 'stdin', io.StringIO(json.dumps(event))):
+                    a.hook('codex')
+            send(dict(session_id='user', transcript_path='/rollout-user.jsonl'))
+            send(dict(session_id='memory', transcript_path=None, cwd='/home/.codex/memories'))
+            state = a.read(a.NATIVE / ('%s.json' % os.getpid()))
+            self.assertEqual((state['sessionId'], state['sessionFile'], state['cwd']), ('user', '/rollout-user.jsonl', '/work'))
 
     def test_install_preserves_other_settings_and_hooks(self):
         with tempfile.TemporaryDirectory() as tmp:

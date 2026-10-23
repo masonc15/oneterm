@@ -158,6 +158,10 @@ def hook(kind):
     data = json.load(sys.stdin)
     if data.get('agent_id'):
         return
+    # Codex runs internal sessions, like memory consolidation, inside the user's process
+    # without a transcript. They can't be resumed, and must not replace the user's session.
+    if kind == 'codex' and not data.get('transcript_path'):
+        return
     p = hook_owner(kind, processes())
     if not p:
         return
