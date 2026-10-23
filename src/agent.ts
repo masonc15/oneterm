@@ -20,6 +20,7 @@ interface Action {
 	type: "restore" | "delete" | "stash" | "count" | "move";
 	itemIds?: string[];
 	scope?: "all" | "others";
+	picked?: string[];
 	groupId?: string;
 	beforeId?: string;
 }
@@ -91,6 +92,7 @@ export async function agent() {
 			case "delete":
 				return { deleted: remove(action.itemIds ?? []) };
 			case "stash":
+				if (action.picked) return action.picked.length ? stash({ scope: "all", picked: action.picked }) : { error: "no tabs chosen" };
 				return stash({ scope: action.scope === "others" ? "others" : "all" });
 			case "count":
 				return countTabs();

@@ -43,6 +43,7 @@ interface Action {
 	type: ActionType;
 	itemIds?: string[];
 	scope?: "all" | "others";
+	picked?: string[];
 	groupId?: string;
 	beforeId?: string;
 	createdAt: number;
@@ -310,7 +311,10 @@ async function handlePage(req: IncomingMessage, res: ServerResponse, url: URL) {
 		}
 		case "/api/stash": {
 			if (!macOnline()) return send(res, 409, { error: "the Mac is offline" });
-			const action = enqueue({ type: "stash", scope: data.scope === "others" ? "others" : "all" });
+			// From the tab picker: only these tabs. An empty pick must never fall through to every tab.
+			const picked = data.picked === undefined ? undefined : ids(data.picked).slice(0, 500);
+			if (picked && !picked.length) return send(res, 400, { error: "no tabs chosen" });
+			const action = enqueue(picked ? { type: "stash", picked } : { type: "stash", scope: data.scope === "others" ? "others" : "all" });
 			if (await waitDone(action, 20_000)) return send(res, 200, action.result);
 			return send(res, 504, { error: "the Mac did not answer" });
 		}

@@ -29,8 +29,13 @@ export interface StashOptions {
 	/** Also stash tabs running other programs, saving the command line to retype on restore. */
 	force?: boolean;
 	note?: string;
-	/** Only these tab ids (testing). */
+	/** Only these tab ids, overriding scope (testing). */
 	tabIds?: string[];
+	/**
+	 * Tabs picked on the page, as "tabId/terminalId", overriding scope. Ghostty reuses
+	 * tab ids, so a tab only counts if it still holds the terminal it had when picked.
+	 */
+	picked?: string[];
 	timeoutMs?: number;
 	/** Report what would happen without saving or closing anything. */
 	dryRun?: boolean;
@@ -110,6 +115,10 @@ function tabOfPid(tabs: Tab[], pid: number, procs: ReturnType<typeof snapshot>):
 }
 
 function pickTabs(tabs: Tab[], opts: StashOptions, procs: ReturnType<typeof snapshot>): Tab[] {
+	if (opts.picked) {
+		const picked = new Set(opts.picked);
+		return tabs.filter((t) => t.terminals.some((x) => picked.has(`${t.id}/${x.id}`)));
+	}
 	if (opts.tabIds?.length) return tabs.filter((t) => opts.tabIds!.includes(t.id));
 	if (opts.scope === "all") return tabs;
 	const current = opts.fromPid ? tabOfPid(tabs, opts.fromPid, procs) : tabs.find((t) => t.windowIndex === 0 && t.selected);
