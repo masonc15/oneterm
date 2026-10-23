@@ -62,26 +62,42 @@ export interface TabCounts {
 	kept: { title: string; reason: string }[];
 }
 
-/** What "stash all" and "stash others" would do right now, from one look at Ghostty. */
-export function countTabs(): { all: TabCounts; others: TabCounts; open: number; cap: number } {
+/** One open tab, for the page's tab picker. */
+export interface TabRow {
+	/** "tabId/terminalId", what the page sends back as StashOptions.picked. */
+	key: string;
+	title: string;
+	kind: Item["kind"];
+	/** Why a stash would leave it open, if it would. */
+	kept: string | null;
+	/** The selected tab of the front Ghostty window. */
+	front: boolean;
+}
+
+/** What "stash all" would do right now, and every open tab, from one look at Ghostty. */
+export function countTabs(): { all: TabCounts; list: TabRow[]; open: number; cap: number } {
 	const tabs = listTabs();
 	const procs = snapshot();
 	const live = livePis();
 	const counted = tabs.map((tab) => ({ tab, c: classifyTab(tab, procs, live, false) }));
-	const tally = (list: typeof counted): TabCounts => ({
-		tabs: list.filter((x) => !x.c.skip).length,
-		stash: list
-			.filter((x) => !x.c.skip)
-			.map((x) => {
-				const kinds = x.c.tabItems.map((i) => i.kind);
-				const kind = (["pi", "claude", "codex", "ssh", "command"] as const).find((k) => kinds.includes(k)) ?? "shell";
-				const title = x.c.tabItems.find((i) => i.kind === kind)?.title ?? x.c.title;
-				return { title, kind };
-			}),
-		kept: list.filter((x) => x.c.skip).map((x) => ({ title: x.c.title, reason: x.c.skip! })),
-	});
-	const current = tabs.find((t) => t.windowIndex === 0 && t.selected);
-	return { all: tally(counted), others: tally(counted.filter((x) => x.tab !== current)), open: tabs.length, cap: config().tabCap };
+	// A tab with any pi counts as pi, and is named after it.
+	const label = (c: Classified) => {
+		const kinds = c.tabItems.map((i) => i.kind);
+		const kind = (["pi", "claude", "codex", "ssh", "command"] as const).find((k) => kinds.includes(k)) ?? "shell";
+		return { title: c.tabItems.find((i) => i.kind === kind)?.title ?? c.title, kind };
+	};
+	const all: TabCounts = {
+		tabs: counted.filter((x) => !x.c.skip).length,
+		stash: counted.filter((x) => !x.c.skip).map((x) => label(x.c)),
+		kept: counted.filter((x) => x.c.skip).map((x) => ({ title: x.c.title, reason: x.c.skip! })),
+	};
+	const list = counted.map(({ tab, c }): TabRow => ({
+		key: `${tab.id}/${tab.terminals[0]?.id}`,
+		...(c.skip ? { title: c.title, kind: "command" as const } : label(c)),
+		kept: c.skip,
+		front: tab.windowIndex === 0 && tab.selected,
+	}));
+	return { all, list, open: tabs.length, cap: config().tabCap };
 }
 
 /** The tab holding the tty of `pid` (or its nearest ancestor with a tty). */
