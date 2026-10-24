@@ -40,6 +40,8 @@ export interface Item {
 export interface Group {
 	id: string;
 	createdAt: string;
+	/** A name given on the page or with `oneterm name`. */
+	name?: string;
 	note?: string;
 	items: Item[];
 }
@@ -175,7 +177,7 @@ function toMarkdown(stash: Stash): string {
 	const lines = ["# oneterm stash", "", "Generated from stash.json. Edit through `oneterm`, not by hand.", ""];
 	for (const group of [...stash.groups].reverse()) {
 		const when = new Date(group.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-		lines.push(`## ${when} (${group.items.length} terminal${group.items.length === 1 ? "" : "s"})`, "");
+		lines.push(`## ${group.name ? `${group.name}: ` : ""}${when} (${group.items.length} terminal${group.items.length === 1 ? "" : "s"})`, "");
 		if (group.note) lines.push(`> ${group.note}`, "");
 		for (const item of group.items) {
 			const cmd = restoreCommand(item);

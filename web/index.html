@@ -106,7 +106,21 @@
 
   .group { margin-top: 30px; }
   .group-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 0 2px 8px; }
-  .count { font: 700 17px/1.2 var(--display); }
+  .gname { display: inline-flex; align-items: baseline; gap: 7px; min-width: 0; max-width: 100%; text-align: left; font: 700 17px/1.2 var(--display); border-radius: 4px; cursor: text; }
+  .gname .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gname svg { flex: none; align-self: center; width: 13px; height: 13px; color: var(--ink-3); opacity: 0; transition: opacity .12s; }
+  .group-head:hover .gname svg, .gname:focus-visible svg { opacity: 1; }
+  .gname:hover .t { text-decoration: underline dotted var(--ink-3); text-underline-offset: 4px; }
+  .gname:hover svg { color: var(--accent); }
+  @media (hover: none) { .gname svg { opacity: .55; } }
+  /* The padding and border are cancelled by the margin, so the text doesn't move when editing starts. */
+  .gname-input {
+    font: 700 17px/1.2 var(--display); color: var(--ink); background: var(--card);
+    padding: 1px 6px; margin: -2px -7px; border: 1px solid var(--accent); border-radius: 6px;
+    box-shadow: 0 0 0 3px var(--accent-soft); outline: none;
+    field-sizing: content; min-width: 16ch; max-width: min(100%, 560px);
+  }
+  .gname-input::placeholder { color: var(--ink-3); font-weight: 400; }
   .when { color: var(--ink-3); font-size: 13.5px; }
   .note { flex-basis: 100%; color: var(--ink-2); font-style: italic; font-size: 14px; }
   .group-actions { margin-left: auto; display: flex; gap: 14px; font-size: 13.5px; }
@@ -214,7 +228,7 @@
     </div>
   </header>
   <main id="list"></main>
-  <p class="hint">Click a title to reopen it in Ghostty on your Mac, and it comes off this list. Drag an entry to move it to another group. If the Mac's offline, your clicks wait until it's back.</p>
+  <p class="hint">Click a title to reopen it in Ghostty on your Mac, and it comes off this list. Click a group's heading to name it. Drag an entry to move it to another group. If the Mac's offline, your clicks wait until it's back.</p>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -377,14 +391,76 @@ function dropHandlers(groupId) {
   };
 }
 
+// Names typed here, shown until the hub's copy catches up (or 30 s pass, in case it never does).
+const typedNames = new Map();
+// The group whose name is being edited. Polling pauses while it is set so the input isn't rebuilt.
+let editing = null;
+
+function groupName(g) {
+  const typed = typedNames.get(g.id);
+  return typed ? typed.name : g.name || "";
+}
+
+function whenText(g, withCount) {
+  const created = new Date(g.createdAt);
+  return `${withCount ? `${plural(g.items.length, "terminal")} · ` : ""}Stashed ${created.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · ${ago(g.createdAt)}`;
+}
+
+const PENCIL = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.8 2.7l2.5 2.5L5.8 12.7l-3.2.7.7-3.2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+
+/** Swap the heading for a text box: Enter or clicking away saves, Escape cancels, an empty name clears it. */
+function editName(g, button) {
+  const before = groupName(g);
+  const input = el("input", { class: "gname-input", value: before, placeholder: "Name this group", maxlength: "80",
+    "aria-label": "Group name", spellcheck: "false", autocomplete: "off" });
+  let finished = false;
+  const finish = (save, viaKey) => {
+    if (finished) return;
+    finished = true;
+    editing = null;
+    const name = input.value.replace(/\s+/g, " ").trim();
+    if (save && name !== before) {
+      typedNames.set(g.id, { name, at: Date.now() });
+      post("/api/rename", { groupId: g.id, name })
+        .then(() => refresh(true))
+        .catch((err) => { typedNames.delete(g.id); toast(`Couldn't rename: ${err.message}`); refresh(true); });
+    }
+    // Swap just the heading back, not the whole list, so a click that ended the edit still lands.
+    const heading = nameButton(g);
+    input.replaceWith(heading);
+    heading.parentElement.querySelector(".when").textContent = whenText(g, Boolean(groupName(g)));
+    if (viaKey) heading.focus();
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); finish(true, true); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(false, true); }
+  });
+  input.addEventListener("blur", () => finish(true, false));
+  editing = g.id;
+  // Unnamed groups show their count in the heading; keep it visible next to the box.
+  if (!before) button.parentElement.querySelector(".when").textContent = whenText(g, true);
+  button.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+function nameButton(g) {
+  const name = groupName(g);
+  const heading = el("button", { class: "gname", title: name ? "Rename this group" : "Name this group" },
+    el("span", { class: "t" }, name || plural(g.items.length, "terminal")));
+  heading.insertAdjacentHTML("beforeend", PENCIL);
+  heading.addEventListener("click", () => editName(g, heading));
+  return heading;
+}
+
 function groupBlock(g) {
   const created = new Date(g.createdAt);
   const busy = g.items.some((i) => i.status === "pending");
+  const name = groupName(g);
   return el("section", { class: "group", ...dropHandlers(g.id) },
     el("div", { class: "group-head" },
-      el("span", { class: "count" }, plural(g.items.length, "terminal")),
-      el("span", { class: "when", title: created.toLocaleString() },
-        `Stashed ${created.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · ${ago(g.createdAt)}`),
+      nameButton(g),
+      el("span", { class: "when", title: created.toLocaleString() }, whenText(g, Boolean(name))),
       el("span", { class: "group-actions" },
         el("button", { class: "link", disabled: busy, onclick: () => act("/api/restore", { groupId: g.id }, restoredText) }, "Restore all"),
         el("button", { class: "link danger", disabled: busy, onclick: () => {
@@ -468,6 +544,10 @@ function renderMac(mac, tabs) {
 }
 
 function render(state) {
+  for (const [id, typed] of typedNames) {
+    const g = state.groups.find((x) => x.id === id);
+    if (!g || (g.name || "") === typed.name || Date.now() - typed.at > 30_000) typedNames.delete(id);
+  }
   renderMac(state.mac, state.tabs);
   const total = state.groups.reduce((n, g) => n + g.items.length, 0);
   document.getElementById("total").textContent = total ? `${plural(total, "terminal")} in ${plural(state.groups.length, "group")}` : "Nothing stashed";
@@ -495,7 +575,7 @@ function render(state) {
 }
 
 async function refresh(force) {
-  if (drag) return;
+  if (drag || editing) return;
   try {
     const res = await fetch("/api/state", { cache: "no-store" });
     const text = await res.text();

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { groupItemIds, move, remove, restore } from "./restore.ts";
+import { groupItemIds, move, remove, rename, restore } from "./restore.ts";
 import { reap, type Scope, stash } from "./stash.ts";
 import { displayCwd, findItem, type Item, load, restoreCommand } from "./store.ts";
 
@@ -13,6 +13,7 @@ const HELP = `oneterm: OneTab for Ghostty tabs and agents
   oneterm ls [--json]        List the stash
   oneterm rm ID...           Delete items (or groups) without restoring
   oneterm mv ID... GROUP     Move items into another group
+  oneterm name GROUP [NAME]  Name a group; no name clears it
   oneterm agent              Save tabs that close with Ghostty, nudge, and sync
                              with the hub (launchd runs this)
   oneterm open               Open the hub page`;
@@ -50,7 +51,7 @@ function printList(json: boolean) {
 	if (!stash.groups.length) return console.log("Nothing stashed.");
 	for (const g of [...stash.groups].reverse()) {
 		const when = new Date(g.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-		console.log(`${g.id}  ${when}${g.note ? ` — ${g.note}` : ""}`);
+		console.log(`${g.id}  ${g.name ? `${g.name}  ` : ""}${when}${g.note ? ` — ${g.note}` : ""}`);
 		for (const i of g.items) {
 			const cwd = displayCwd(i.cwd);
 			console.log(`  ${i.id}  ${kindLabel[i.kind]} ${i.title}${i.title === cwd ? "" : `  ${cwd}`}${i.status === "pending" ? " (stashing…)" : ""}`);
@@ -150,6 +151,12 @@ async function main() {
 			const group = args.pop();
 			if (!group || !args.length) throw new Error("usage: oneterm mv ID... GROUP");
 			return console.log(`Moved ${move(expandIds(args), group)}`);
+		}
+		case "name": {
+			const group = args.shift();
+			if (!group) throw new Error("usage: oneterm name GROUP [NAME]");
+			if (!rename(group, args.join(" "))) throw new Error(`oneterm: no group ${group}`);
+			return console.log(args.join("").trim() ? `Named ${group}` : `Cleared the name of ${group}`);
 		}
 		case "rm":
 			return console.log(`Deleted ${remove(expandIds(args))}`);

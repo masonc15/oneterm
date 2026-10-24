@@ -36,7 +36,10 @@ const COUNT_FRESH_MS = 30_000;
 /** Queued restores older than this are dropped instead of opening tabs out of nowhere. */
 const RESTORE_TTL_MS = 24 * 3600_000;
 
-type ActionType = "restore" | "delete" | "stash" | "count" | "move";
+type ActionType = "restore" | "delete" | "stash" | "count" | "move" | "rename";
+
+/** The longest group name kept (same as restore.ts). */
+const NAME_MAX = 80;
 
 interface Action {
 	id: string;
@@ -46,6 +49,7 @@ interface Action {
 	picked?: string[];
 	groupId?: string;
 	beforeId?: string;
+	name?: string;
 	createdAt: number;
 	sentAt?: number;
 	doneAt?: number;
@@ -145,6 +149,11 @@ function view() {
 		const t = groups.find((g) => g.id === a.groupId)!;
 		const at = a.beforeId ? t.items.findIndex((i) => i.id === a.beforeId) : -1;
 		t.items.splice(at === -1 ? t.items.length : at, 0, ...moving);
+	}
+	// And names it hasn't saved yet, the last one typed winning.
+	for (const a of pending()) {
+		if (a.type !== "rename") continue;
+		groups = groups.map((g) => (g.id === a.groupId ? { ...g, name: a.name || undefined } : g));
 	}
 	groups = groups.filter((g) => g.items.length);
 	return { groups, tabs, mac: { online: macOnline(), seenAt: state.agentSeenAt, syncedAt: state.syncedAt } };
@@ -302,6 +311,13 @@ async function handlePage(req: IncomingMessage, res: ServerResponse, url: URL) {
 			const action = enqueue({ type: "move", itemIds: moving, groupId: data.groupId, beforeId });
 			if (macOnline() && (await waitDone(action, CLICK_WAIT_MS))) return send(res, 200, action.result);
 			return send(res, 200, { moved: moving.length, queued: true });
+		}
+		case "/api/rename": {
+			if (typeof data.groupId !== "string" || typeof data.name !== "string") return send(res, 400, { error: "groupId and name are required" });
+			const name = data.name.replace(/\s+/g, " ").trim().slice(0, NAME_MAX);
+			// The page shows the new name from view() right away, so there's no need to wait for the Mac.
+			enqueue({ type: "rename", groupId: data.groupId, name });
+			return send(res, 200, { name, queued: !macOnline() });
 		}
 		case "/api/cancel": {
 			const before = state.actions.length;

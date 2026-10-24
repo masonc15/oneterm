@@ -1,14 +1,14 @@
 /**
  * The always-on Mac side of oneterm, run by launchd. It watches Ghostty, saving tabs
  * that close with it and nudging when too many are open. With a hub configured, it
- * also pushes the stash whenever it changes and carries out restores, deletes, and
- * stashes clicked on the hub page.
+ * also pushes the stash whenever it changes and carries out restores, deletes, moves,
+ * renames, and stashes clicked on the hub page.
  */
 
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { checkTabs } from "./closed.ts";
-import { move, remove, restore } from "./restore.ts";
+import { move, remove, rename, restore } from "./restore.ts";
 import { notify, startNudge } from "./nudge.ts";
 import { countTabs, stash } from "./stash.ts";
 import { displayCwd, HOME, load, readJson, restoreCommand } from "./store.ts";
@@ -20,12 +20,13 @@ interface HubConfig {
 
 interface Action {
 	id: string;
-	type: "restore" | "delete" | "stash" | "count" | "move";
+	type: "restore" | "delete" | "stash" | "count" | "move" | "rename";
 	itemIds?: string[];
 	scope?: "all" | "others";
 	picked?: string[];
 	groupId?: string;
 	beforeId?: string;
+	name?: string;
 }
 
 const STASH_FILE = join(HOME, "stash.json");
@@ -128,6 +129,8 @@ export async function agent() {
 				return countTabs();
 			case "move":
 				return { moved: move(action.itemIds ?? [], action.groupId ?? "", action.beforeId) };
+			case "rename":
+				return { renamed: rename(action.groupId ?? "", action.name ?? "") };
 		}
 	};
 

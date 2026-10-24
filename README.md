@@ -34,12 +34,13 @@ oneterm stash --this       # only the front tab
 oneterm stash --dry-run    # list what would close and what would stay open
 oneterm restore            # fzf picker. Tab selects several, Ctrl-D deletes
 oneterm ls
+oneterm name g123 Kobo     # name a group (no name clears it)
 oneterm open               # the web page
 ```
 
 In pi, `/oneterm all`, `/oneterm others`, and `/oneterm this` do the same thing.
 
-There's also a [OneTab](https://www.one-tab.com)-style web page. A small hub on an always-on server serves it, so you can get to it from your phone or while your Mac is asleep. Click something to reopen it, drag things between groups, or delete them. To stash from the page, use "Stash all tabs", or "Choose tabs…" to pick which open Ghostty tabs go. If the Mac is offline, the hub holds onto your clicks and sends them once it's back. The hub only ever sends the Mac item IDs, so nothing typed into the page can make your Mac run a command.
+There's also a [OneTab](https://www.one-tab.com)-style web page. A small hub on an always-on server serves it, so you can get to it from your phone or while your Mac is asleep. Click something to reopen it, drag things between groups, or delete them. Click a group's heading to give it a name, then press Enter. To stash from the page, use "Stash all tabs", or "Choose tabs…" to pick which open Ghostty tabs go. If the Mac is offline, the hub holds onto your clicks and sends them once it's back. The hub only ever sends the Mac item IDs and group names, so nothing typed into the page can make your Mac run a command.
 
 Once you have more than 6 tabs open, you'll get a notification with a "Stash all tabs" button. You can change the limit with `tabCap` in `~/.oneterm/config.json`, or set it to 0 to turn the notification off. `nudgeRepeatMinutes` controls how often it reminds you.
 

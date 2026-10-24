@@ -83,6 +83,22 @@ export function move(itemIds: string[], groupId: string, beforeId?: string): num
 	});
 }
 
+/** The longest group name kept; anything past it is cut. */
+export const NAME_MAX = 80;
+
+/** Name a group, or clear its name with an empty one. Returns whether the group exists. */
+export function rename(groupId: string, name: string): boolean {
+	const clean = name.replace(/\s+/g, " ").trim().slice(0, NAME_MAX);
+	return update((s) => {
+		const group = s.groups.find((g) => g.id === groupId);
+		if (!group) return false;
+		if (clean) group.name = clean;
+		else delete group.name;
+		logHistory("rename", { groupId, name: clean });
+		return true;
+	});
+}
+
 export function groupItemIds(groupId: string): string[] {
 	return load().groups.find((g) => g.id === groupId)?.items.map((i) => i.id) ?? [];
 }
