@@ -13,7 +13,8 @@ const HELP = `oneterm: OneTab for Ghostty tabs and agents
   oneterm ls [--json]        List the stash
   oneterm rm ID...           Delete items (or groups) without restoring
   oneterm mv ID... GROUP     Move items into another group
-  oneterm agent              Sync with the hub (launchd runs this)
+  oneterm agent              Save tabs that close with Ghostty, nudge, and sync
+                             with the hub (launchd runs this)
   oneterm open               Open the hub page`;
 
 function flag(args: string[], name: string) {

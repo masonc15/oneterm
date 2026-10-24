@@ -43,11 +43,12 @@ export function parseSsh(command: string, localCwd: string): Remote | null {
 
 const cache = new Map<number, { at: number; result: RemoteProbe }>();
 export type RemoteProbe = { remote: Remote; live?: AgentLive; cwd?: string; skip?: string };
-export function remoteAgent(pid: number, command: string, cwd: string, fresh = false): RemoteProbe {
+/** Ask the host what is running behind an SSH tab, reusing an answer up to `maxAgeMs` old. */
+export function remoteAgent(pid: number, command: string, cwd: string, maxAgeMs = 2_000): RemoteProbe {
 	const remote = parseSsh(command, cwd);
 	if (!remote) return { remote: { host: "", argv: [], localCwd: cwd }, skip: "SSH needs a configured host and a simple ssh command" };
 	const cached = cache.get(pid);
-	if (!fresh && cached && Date.now() - cached.at < 2_000) return cached.result;
+	if (cached && Date.now() - cached.at < maxAgeMs) return cached.result;
 	let result: RemoteProbe;
 	try {
 		const sockets = execFileSync("lsof", ["-nP", "-a", "-p", String(pid), "-iTCP", "-sTCP:ESTABLISHED", "-Fn"], { encoding: "utf8", timeout: 2_000 });

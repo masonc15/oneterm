@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { closeTerminals, listTabs, type Tab } from "./ghostty.ts";
-import { alive, foreground, livePis, snapshot } from "./procs.ts";
+import { alive, foreground, type LivePi, livePis, snapshot } from "./procs.ts";
 import { agentFileExists, cancelAgent, pollAgent, remoteAgent, requestAgent } from "./agents.ts";
 import {
 	ACK_DIR,
@@ -84,7 +84,7 @@ export function countTabs(): { all: TabCounts; list: TabRow[]; open: number; cap
 	const tabs = listTabs();
 	const procs = snapshot();
 	const live = livePis();
-	const counted = tabs.map((tab) => ({ tab, c: classifyTab(tab, procs, live, false) }));
+	const counted = tabs.map((tab) => ({ tab, c: classifyTab(tab, procs, live) }));
 	// A tab with any pi counts as pi, and is named after it.
 	const label = (c: Classified) => {
 		const kinds = c.tabItems.map((i) => i.kind);
@@ -133,28 +133,47 @@ interface Classified {
 	skip: string | null;
 }
 
+export interface ClassifyOptions {
+	/** Save programs other than agents as their command line. */
+	force?: boolean;
+	/**
+	 * Describe every terminal and never skip one, for the record of open tabs. Anything
+	 * oneterm can't resume becomes its command line, to type back in.
+	 */
+	record?: boolean;
+	/** How old an answer from an SSH host can be (default 2 s). */
+	probeAgeMs?: number;
+}
+
 /** Turn one tab's terminals into stash items, or say why the tab has to stay open. */
-function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: ReturnType<typeof livePis>, force: boolean, fresh = false): Classified {
+export function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: ReturnType<typeof livePis>, opts: ClassifyOptions = {}): Classified {
 	const title = stripGlyph(tab.name);
 	const waiting = new Set(load().groups.flatMap((g) => g.items.filter((i) => i.status === "pending").map((i) => i.terminalId)));
-	if (tab.terminals.some((t) => waiting.has(t.id))) return { title, tabItems: [], skip: "already stashing" };
+	if (!opts.record && tab.terminals.some((t) => waiting.has(t.id))) return { title, tabItems: [], skip: "already stashing" };
 	const tabItems: Item[] = [];
 	let skip: string | null = null;
 	for (const term of tab.terminals) {
 		const fg = foreground(term.tty, procs, live);
 		const base = { id: newId("i"), title, cwd: term.cwd, tabKey: tab.id, terminalId: term.id };
+		const cantStash = (reason: string, command: string) => {
+			if (opts.record) tabItems.push({ ...base, kind: "command", status: "stashed", command });
+			else skip = reason;
+		};
+		// Only the record keeps what a hook last saw; a stash gets it from the agent as it stops.
+		const seen = (a: LivePi) => opts.record ? { lastUser: a.lastUser || undefined, lastAssistant: a.lastAssistant || undefined,
+			interrupted: (a.phase !== undefined && !IDLE_PHASES.has(a.phase)) || undefined } : {};
 		if (fg.kind === "shell") tabItems.push({ ...base, kind: "shell", status: "stashed", title: displayCwd(term.cwd) });
 		else if (fg.kind === "ssh") {
-			const r = remoteAgent(fg.pid, fg.command, term.cwd, fresh);
-			if (r.skip) skip = r.skip;
+			const r = remoteAgent(fg.pid, fg.command, term.cwd, opts.probeAgeMs);
+			if (r.skip) cantStash(r.skip, fg.command);
 			else if (r.live) {
 				const a = r.live;
 				tabItems.push({ ...base, kind: a.kind, status: "pending", cwd: a.cwd,
 					title: a.name ?? `${a.kind} on ${r.remote.host}: ${a.cwd}`, name: a.name ?? undefined,
-					sessionId: a.sessionId, sessionFile: a.sessionFile ?? undefined, pid: a.pid, identity: a.identity, remote: r.remote });
+					sessionId: a.sessionId, sessionFile: a.sessionFile ?? undefined, pid: a.pid, identity: a.identity, remote: r.remote, ...seen(a) });
 			} else if (r.cwd) tabItems.push({ ...base, kind: "shell", status: "stashed", cwd: r.cwd,
 				title: `${r.remote.host}: ${r.cwd}`, remote: r.remote });
-			else skip = "SSH helper returned no terminal";
+			else cantStash("SSH helper returned no terminal", fg.command);
 		}
 		else if (fg.kind === "pi" || fg.kind === "claude" || fg.kind === "codex") {
 			tabItems.push({
@@ -169,12 +188,13 @@ function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: ReturnT
 				sessionFile: fg.live.sessionFile ?? undefined,
 				pid: fg.pid,
 				identity: fg.live.identity,
+				...seen(fg.live),
 			});
 		} else if (fg.kind === "pi-unregistered") {
-			skip = "pi needs /reload-all";
+			cantStash("pi needs /reload-all", fg.command);
 		} else if (fg.kind === "agent-unregistered") {
-			skip = fg.agent === "codex" ? "Codex needs trusted /hooks and --no-daemon" : "Claude Code needs oneterm hooks";
-		} else if (force) {
+			cantStash(fg.agent === "codex" ? "Codex needs trusted /hooks and --no-daemon" : "Claude Code needs oneterm hooks", fg.command);
+		} else if (opts.force || opts.record) {
 			tabItems.push({ ...base, kind: "command", status: "stashed", command: fg.command });
 		} else {
 			skip = `running ${fg.command.split(/\s+/)[0].split("/").pop()}`;
@@ -182,6 +202,9 @@ function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: ReturnT
 	}
 	return { title, tabItems, skip };
 }
+
+/** Hook phases in which a Claude Code or Codex session is waiting on the user. */
+const IDLE_PHASES = new Set(["idle", "resumed", "ended"]);
 
 export function stash(opts: StashOptions): StashResult {
 	ensureDirs();
@@ -196,7 +219,7 @@ export function stash(opts: StashOptions): StashResult {
 	const requests: { pid: number; item: Item }[] = [];
 
 	for (const tab of chosen) {
-		const { title, tabItems, skip } = classifyTab(tab, procs, live, Boolean(opts.force), true);
+		const { title, tabItems, skip } = classifyTab(tab, procs, live, { force: opts.force, probeAgeMs: 0 });
 		if (skip) {
 			result.skipped.push({ title, reason: skip });
 			continue;

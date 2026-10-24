@@ -28,10 +28,24 @@ function jxa<T>(source: string, arg: unknown = null): T {
 	return JSON.parse(out) as T;
 }
 
-/** Checked through ps so asking never launches Ghostty. */
+/**
+ * The running Ghostty as "pid start-time", or null. Each launch gets a new one, so it
+ * tells a relaunch apart from the same Ghostty. Checked through ps so asking never launches Ghostty.
+ */
+export function instance(): string | null {
+	const out = execFileSync("ps", ["-axo", "pid=,comm="], { encoding: "utf8", maxBuffer: 32 << 20 });
+	const pid = out.split("\n").find((l) => l.endsWith("/Ghostty.app/Contents/MacOS/ghostty"))?.trim().split(/\s+/)[0];
+	if (!pid) return null;
+	try {
+		const start = execFileSync("ps", ["-p", pid, "-o", "lstart="], { encoding: "utf8" }).trim();
+		return start ? `${pid} ${start}` : null;
+	} catch {
+		return null; // It exited between the two looks.
+	}
+}
+
 export function isRunning(): boolean {
-	const out = execFileSync("ps", ["-axo", "comm="], { encoding: "utf8", maxBuffer: 32 << 20 });
-	return out.split("\n").some((c) => c.endsWith("/Ghostty.app/Contents/MacOS/ghostty"));
+	return instance() !== null;
 }
 
 export function listTabs(): Tab[] {

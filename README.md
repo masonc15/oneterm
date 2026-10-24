@@ -23,6 +23,8 @@ It won't kill an agent in the middle of something. The tool call that's running 
 
 Restoring opens a new tab in the saved directory and runs `pi --session <file>`, `claude --resume <id>`, or `codex --no-daemon resume <id>`, over SSH if the session was remote. Terminals that shared a tab come back as splits.
 
+If Ghostty goes away with tabs still open, because it crashed, you quit it, or the Mac restarted, oneterm saves those tabs for you. The LaunchAgent looks at your tabs every 15 seconds, and once the Ghostty that had them is gone, it puts what it last saw into a new group and sends a notification, so you don't have to remember which sessions were open. Ghostty's `window-save-state` already reopens plain shells in their folders, so oneterm leaves those out. Anything it can't resume, like an editor or a dev server, is saved as its command line, which gets typed in but not run when you restore it. Closing a tab or a window yourself doesn't save anything.
+
 ## Usage
 
 ```sh
@@ -59,7 +61,7 @@ The hook installer adds the [Claude Code hooks](https://code.claude.com/docs/en/
 
 For remote sessions, copy `support/agents.py` to `~/.oneterm/agents.py` on the server and run it there with `--install`. Then add the host to `remoteHosts` in `~/.oneterm/config.json` on your Mac. For pi on the server, also copy `extension/oneterm.ts` to `~/.pi/agent/extensions/` there. The server can run Linux or macOS. Right now oneterm only matches plain `ssh [-t] [-p PORT] [-l USER] [-i KEY] HOST` connections, and each login needs its own connection, so turn off `ControlMaster` for that host. If you want to keep it for scripts, `Match originalhost HOST exec "test -t 2"` with `ControlPath none` turns it off only for logins at a terminal.
 
-The hub runs in Docker, and `./deploy-hub.sh HOST` copies it to your server over ssh and starts it. Make a random token and put it in `~/.oneterm/hub.json` on your Mac as `{"url": "...", "token": "..."}`. On the server, `~/docker/oneterm/.env` needs that same token as `ONETERM_TOKEN`, plus `ONETERM_HOSTS`, which lists every `host:port` you'll open the page with, separated by commas.
+The hub is optional. Without `~/.oneterm/hub.json`, the LaunchAgent still saves tabs when Ghostty closes and still nudges, and you use the CLI instead of the page. The hub runs in Docker, and `./deploy-hub.sh HOST` copies it to your server over ssh and starts it. Make a random token and put it in `~/.oneterm/hub.json` on your Mac as `{"url": "...", "token": "..."}`. On the server, `~/docker/oneterm/.env` needs that same token as `ONETERM_TOKEN`, plus `ONETERM_HOSTS`, which lists every `host:port` you'll open the page with, separated by commas.
 
 The page itself has no login. Anyone who can reach the hub can see your stash and stash or reopen your tabs, so only run it somewhere private, like your LAN or a [Tailscale](https://tailscale.com) network. Don't put it on the public internet.
 
@@ -67,6 +69,6 @@ Agents you started before setting this up won't have the hooks yet, so restart t
 
 ## Development
 
-`src/` has the CLI, the Mac agent, and the hub. `support/agents.py` is the hook handler, and it's also the helper that runs on SSH hosts. `extension/` is the pi extension, and `web/` is the page. State lives in `~/.oneterm`, or `$ONETERM_HOME` if you set it. `stash.json` is the list, and `history.jsonl` logs every stash, restore, and delete.
+`src/` has the CLI, the Mac agent, and the hub. `support/agents.py` is the hook handler, and it's also the helper that runs on SSH hosts. `extension/` is the pi extension, and `web/` is the page. State lives in `~/.oneterm`, or `$ONETERM_HOME` if you set it. `stash.json` is the list, `open.json` is the agent's record of what's running in Ghostty right now, and `history.jsonl` logs every stash, restore, and delete.
 
 Run `npm test` for the tests. For live testing, point `ONETERM_HOME` at a scratch directory and pass `--tabs` with the IDs of throwaway tabs, so you don't stash your real ones.

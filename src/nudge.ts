@@ -7,17 +7,27 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { listTabs } from "./ghostty.ts";
 import { stash } from "./stash.ts";
 import { config, logHistory } from "./store.ts";
 
 const NOTIFIER = ["/opt/homebrew/bin/terminal-notifier", "/usr/local/bin/terminal-notifier"].find((p) => existsSync(p)) ?? "";
-const CHECK_MS = 20_000;
 // macOS shows a lone action as a button; two or more collapse into an "Options" menu.
 const STASH_BUTTON = "Stash all tabs";
 
-export function startNudge(hubUrl: string | null, log: (m: string) => void) {
-	if (!NOTIFIER) return log("tab-cap nudge off: terminal-notifier not found");
+/** A plain notification; clicking it opens `url`. */
+export function notify(subtitle: string, message: string, url: string | null) {
+	if (!NOTIFIER) return;
+	const args = ["-title", "oneterm", "-subtitle", subtitle, "-message", message];
+	if (url) args.push("-open", url);
+	spawn(NOTIFIER, args, { stdio: "ignore" }).unref();
+}
+
+/** Returns the check to run with the number of open tabs, whenever the agent counts them. */
+export function startNudge(hubUrl: string | null, log: (m: string) => void): (open: number) => void {
+	if (!NOTIFIER) {
+		log("tab-cap nudge off: terminal-notifier not found");
+		return () => {};
+	}
 	let lastNudge = 0;
 	let showing: ChildProcess | null = null;
 
@@ -52,15 +62,9 @@ export function startNudge(hubUrl: string | null, log: (m: string) => void) {
 		});
 	};
 
-	const check = () => {
+	return (open: number) => {
 		const { tabCap, nudgeRepeatMinutes } = config();
 		if (!tabCap) return;
-		let open: number;
-		try {
-			open = listTabs().length;
-		} catch {
-			return;
-		}
 		if (open <= tabCap) {
 			lastNudge = 0;
 			// Back under the cap: take down a nudge that is still on screen.
@@ -74,7 +78,4 @@ export function startNudge(hubUrl: string | null, log: (m: string) => void) {
 		if (lastNudge && Date.now() - lastNudge < nudgeRepeatMinutes * 60_000) return;
 		nudge(open, tabCap);
 	};
-
-	setInterval(check, CHECK_MS);
-	setTimeout(check, 5_000);
 }

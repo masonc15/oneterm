@@ -21,6 +21,10 @@ export interface LivePi {
 	name: string | null;
 	kind?: "pi" | "claude" | "codex";
 	identity?: string;
+	/** Claude Code and Codex only, from their hooks: what the session is doing, and its last exchange. */
+	phase?: string;
+	lastUser?: string;
+	lastAssistant?: string;
 }
 
 export type Foreground =
@@ -28,8 +32,8 @@ export type Foreground =
 	| { kind: "pi"; pid: number; live: LivePi }
 	| { kind: "claude"; pid: number; live: LivePi }
 	| { kind: "codex"; pid: number; live: LivePi }
-	| { kind: "pi-unregistered"; pid: number }
-	| { kind: "agent-unregistered"; agent: "claude" | "codex" }
+	| { kind: "pi-unregistered"; pid: number; command: string }
+	| { kind: "agent-unregistered"; agent: "claude" | "codex"; command: string }
 	| { kind: "ssh"; command: string; pid: number }
 	| { kind: "command"; command: string; pid: number };
 
@@ -95,9 +99,9 @@ export function foreground(tty: string, procs: Proc[], live: Map<number, LivePi>
 	const leader = group.find((p) => p.pid === tpgid) ?? group[0];
 	const program = programName(leader.args);
 	if (SHELLS.has(program)) return { kind: "shell" };
-	if (program === "pi" || group.some((p) => programName(p.args) === "pi")) return { kind: "pi-unregistered", pid: leader.pid };
+	if (program === "pi" || group.some((p) => programName(p.args) === "pi")) return { kind: "pi-unregistered", pid: leader.pid, command: leader.args };
 	const native = group.map((p) => programName(p.args)).find((name) => name === "claude" || name === "claude.exe" || name === "codex");
-	if (native) return { kind: "agent-unregistered", agent: native === "codex" ? "codex" : "claude" };
+	if (native) return { kind: "agent-unregistered", agent: native === "codex" ? "codex" : "claude", command: leader.args };
 	if (program === "ssh" || program === "mosh") return { kind: "ssh", command: leader.args, pid: leader.pid };
 	return { kind: "command", command: leader.args, pid: leader.pid };
 }
