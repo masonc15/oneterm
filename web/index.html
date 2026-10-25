@@ -328,7 +328,10 @@ function itemRow(item, prev) {
   else if (pending) chips.push(el("span", { class: "chip wait" }, "finishing current step"));
   else if (item.interrupted) chips.push(el("span", { class: "chip warn", title: "The agent stopped at a safe point mid-task. Say “continue” after resuming." }, "stopped mid-task"));
   const said = item.lastAssistant || (item.lastUser ? `You: ${item.lastUser}` : "");
-  const second = said
+  // fr's summary says where the session stands; the agent's last words are on hover.
+  const second = item.summary
+    ? el("div", { class: "line2", title: said ? `Last reply: ${said}` : item.summary }, item.summary)
+    : said
     ? el("div", { class: "line2", title: said }, said)
     : item.restoreCommand && item.kind !== "pi"
       ? el("div", { class: "line2 cmd" }, `$ ${item.restoreCommand}`)
@@ -561,7 +564,7 @@ function showPop(which) {
   const nodes = [];
   if (c.stash.length) {
     nodes.push(el("h3", {}, `Will be stashed · ${c.stash.length}`),
-      el("ul", {}, c.stash.map((t) => el("li", {}, el("span", { class: `k ${t.kind}`, title: KIND_NAME[t.kind] }, mark(t.kind)), el("span", { title: t.title }, t.title)))));
+      el("ul", {}, c.stash.map((t) => el("li", {}, el("span", { class: `k ${t.kind}`, title: KIND_NAME[t.kind] }, mark(t.kind)), el("span", { title: t.summary ? `${t.title}\n${t.summary}` : t.title }, t.title)))));
   } else {
     nodes.push(el("h3", {}, "Nothing to stash"));
   }
@@ -704,7 +707,7 @@ function renderPicker() {
   const focused = document.activeElement?.closest?.("#picker [data-key]")?.dataset.key;
   const open = rows.filter((t) => !t.kept);
   const n = picking.size;
-  const row = (t) => el("label", { class: `row${t.kept ? " kept" : ""}`, "data-key": t.key, title: t.kept ? `${t.title}: stays open (${keptLabel(t.kept)})` : t.title },
+  const row = (t) => el("label", { class: `row${t.kept ? " kept" : ""}`, "data-key": t.key, title: t.kept ? `${t.title}: stays open (${keptLabel(t.kept)})` : t.summary ? `${t.title}\n${t.summary}` : t.title },
     el("input", { type: "checkbox", checked: picking.has(t.key), disabled: Boolean(t.kept),
       onchange: (e) => { e.target.checked ? picking.add(t.key) : picking.delete(t.key); renderPicker(); } }),
     el("span", { class: `k ${t.kept ? "" : t.kind}`, title: t.kept ? undefined : KIND_NAME[t.kind] }, t.kept ? "–" : mark(t.kind)),

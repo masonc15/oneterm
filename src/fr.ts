@@ -1,8 +1,9 @@
 /**
- * Session titles from fr (fast-resume), which names a session better than its tab
- * does: a name you set wins, then a title Claude Haiku wrote from the whole chat.
- * Looked up by session ID with `fr --json --id`, and kept for a short while so the
- * page's frequent recounts don't run fr every time.
+ * Session titles and summaries from fr (fast-resume), which names a session better
+ * than its tab does: a name you set wins, then a title Claude Haiku wrote from the
+ * whole chat, along with one line on where the session stands. Looked up by session
+ * ID with `fr --json --id`, and kept for a short while so the page's frequent
+ * recounts don't run fr every time.
  */
 
 import { spawnSync } from "node:child_process";
@@ -10,6 +11,7 @@ import type { Item } from "./store.ts";
 
 export interface FrInfo {
 	title: string;
+	summary?: string;
 }
 
 type Session = Pick<Item, "kind" | "sessionId" | "remote">;
@@ -31,7 +33,7 @@ function key(s: Session) {
 	return `${s.kind}::${frId(s)}`;
 }
 
-function run(ids: string[], refresh: boolean): { id: string; agent: string; title: string }[] | null {
+function run(ids: string[], refresh: boolean): { id: string; agent: string; title: string; summary?: string | null }[] | null {
 	const args = ["--json", ...(refresh ? [] : ["--no-refresh"]), ...ids.flatMap((id) => ["--id", id])];
 	const res = spawnSync(process.env.ONETERM_FR || "fr", args, { encoding: "utf8", timeout: TIMEOUT_MS, maxBuffer: 8 << 20 });
 	if (res.status !== 0 || !res.stdout) return null;
@@ -59,7 +61,7 @@ function fetchMissing(sessions: Session[]) {
 	if (!found) return;
 	for (const s of found) {
 		const k = `${s.agent}::${s.id}`;
-		if (stale.has(k) && s.title) cache.set(k, { info: { title: s.title }, at: now });
+		if (stale.has(k) && s.title) cache.set(k, { info: { title: s.title, summary: s.summary || undefined }, at: now });
 	}
 }
 
@@ -69,10 +71,13 @@ export function frInfo(sessions: Session[]): (FrInfo | null)[] {
 	return sessions.map((s) => (s.sessionId && AGENTS.has(s.kind) ? cache.get(key(s))?.info ?? null : null));
 }
 
-/** These items with fr's title where it has one. */
-export function withFrTitles<T extends Session & { title: string }>(items: T[]): T[] {
+/** These items with fr's title and summary where it has them. */
+export function withFrInfo<T extends Session & { title: string; summary?: string }>(items: T[]): T[] {
 	const info = frInfo(items);
-	return items.map((item, i) => (info[i] ? { ...item, title: info[i]!.title } : item));
+	return items.map((item, i) => {
+		const found = info[i];
+		return found ? { ...item, title: found.title, ...(found.summary ? { summary: found.summary } : {}) } : item;
+	});
 }
 
 /** Forget every answer; for tests. */

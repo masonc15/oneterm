@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { withFrTitles } from "./fr.ts";
+import { withFrInfo } from "./fr.ts";
 import { groupItemIds, move, remove, rename, restore } from "./restore.ts";
 import { reap, type Scope, stash } from "./stash.ts";
 import { displayCwd, findItem, type Item, load, restoreCommand } from "./store.ts";
@@ -41,7 +41,7 @@ const kindLabel: Record<Item["kind"], string> = { pi: "π", claude: "C", codex: 
 
 /** The stash newest group first, with fr's titles. */
 function titledGroups() {
-	return [...load().groups].reverse().map((g) => ({ ...g, items: withFrTitles(g.items) }));
+	return [...load().groups].reverse().map((g) => ({ ...g, items: withFrInfo(g.items) }));
 }
 
 function itemLine(item: Item, createdAt: string) {
@@ -68,10 +68,11 @@ function printList(json: boolean) {
 function preview(id: string) {
 	const found = findItem(load(), id);
 	if (!found) return;
-	const [item] = withFrTitles([found.item]);
+	const [item] = withFrInfo([found.item]);
 	const out = [item.title, displayCwd(item.cwd), ""];
 	const cmd = restoreCommand(item);
 	if (cmd) out.push(`$ ${cmd}`, "");
+	if (item.summary) out.push(item.summary, "");
 	if (item.interrupted) out.push("Stopped mid-task at a safe point; say \"continue\" after resuming.", "");
 	if (item.lastUser) out.push(`You: ${item.lastUser}`, "");
 	if (item.lastAssistant) out.push(`${item.kind}: ${item.lastAssistant}`);

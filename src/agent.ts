@@ -7,7 +7,7 @@
 
 import { join } from "node:path";
 import { checkTabs } from "./closed.ts";
-import { withFrTitles } from "./fr.ts";
+import { withFrInfo } from "./fr.ts";
 import { move, remove, rename, restore } from "./restore.ts";
 import { notify, startNudge } from "./nudge.ts";
 import { countTabs, stash } from "./stash.ts";
@@ -47,7 +47,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** The stash as the page shows it: newest group first, with fr's titles, display paths, and restore commands. */
 function pageGroups() {
 	const groups = [...load().groups].reverse();
-	const titled = withFrTitles(groups.flatMap((g) => g.items));
+	const titled = withFrInfo(groups.flatMap((g) => g.items));
 	let at = 0;
 	return groups.map((g) => ({
 		...g,

@@ -28,6 +28,8 @@ export interface Item {
 	name?: string;
 	lastUser?: string;
 	lastAssistant?: string;
+	/** fr's one line on where the session stands; filled in for display, never saved. */
+	summary?: string;
 	/** The agent was mid-task and stopped at a safe point; say "continue" after resuming. */
 	interrupted?: boolean;
 	pid?: number;

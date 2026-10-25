@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { closeTerminals, listTabs, type Tab } from "./ghostty.ts";
 import { alive, foreground, type LivePi, livePis, snapshot } from "./procs.ts";
 import { agentFileExists, cancelAgent, pollAgent, remoteAgent, requestAgent } from "./agents.ts";
-import { withFrTitles } from "./fr.ts";
+import { withFrInfo } from "./fr.ts";
 import {
 	ACK_DIR,
 	config,
@@ -63,7 +63,7 @@ export interface TabCounts {
 	/** Tabs a stash would close. */
 	tabs: number;
 	/** Their titles, and what is in them (a tab with any pi counts as pi). */
-	stash: { title: string; kind: Item["kind"] }[];
+	stash: { title: string; kind: Item["kind"]; summary?: string }[];
 	/** Tabs it would leave open, and why. */
 	kept: { title: string; reason: string }[];
 }
@@ -78,6 +78,8 @@ export interface TabRow {
 	kept: string | null;
 	/** The selected tab of the front Ghostty window. */
 	front: boolean;
+	/** fr's one line on where the session stands, if it has one. */
+	summary?: string;
 }
 
 /** What "stash all" would do right now, and every open tab, from one look at Ghostty. */
@@ -87,14 +89,15 @@ export function countTabs(): { all: TabCounts; list: TabRow[]; open: number; cap
 	const live = livePis();
 	const counted = tabs.map((tab) => ({ tab, c: classifyTab(tab, procs, live) }));
 	// One fr lookup for every tab's sessions, so each shows fr's title.
-	const titled = withFrTitles(counted.flatMap((x) => x.c.tabItems));
+	const titled = withFrInfo(counted.flatMap((x) => x.c.tabItems));
 	let at = 0;
 	for (const { c } of counted) c.tabItems = titled.slice(at, (at += c.tabItems.length));
 	// A tab with any pi counts as pi, and is named after it.
 	const label = (c: Classified) => {
 		const kinds = c.tabItems.map((i) => i.kind);
 		const kind = (["pi", "claude", "codex", "ssh", "command"] as const).find((k) => kinds.includes(k)) ?? "shell";
-		return { title: c.tabItems.find((i) => i.kind === kind)?.title ?? c.title, kind };
+		const item = c.tabItems.find((i) => i.kind === kind);
+		return { title: item?.title ?? c.title, kind, ...(item?.summary ? { summary: item.summary } : {}) };
 	};
 	const all: TabCounts = {
 		tabs: counted.filter((x) => !x.c.skip).length,
