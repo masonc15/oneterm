@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { closeTerminals, listTabs, type Tab } from "./ghostty.ts";
 import { alive, foreground, type LivePi, livePis, snapshot } from "./procs.ts";
 import { agentFileExists, cancelAgent, pollAgent, remoteAgent, requestAgent } from "./agents.ts";
+import { withFrTitles } from "./fr.ts";
 import {
 	ACK_DIR,
 	config,
@@ -85,6 +86,10 @@ export function countTabs(): { all: TabCounts; list: TabRow[]; open: number; cap
 	const procs = snapshot();
 	const live = livePis();
 	const counted = tabs.map((tab) => ({ tab, c: classifyTab(tab, procs, live) }));
+	// One fr lookup for every tab's sessions, so each shows fr's title.
+	const titled = withFrTitles(counted.flatMap((x) => x.c.tabItems));
+	let at = 0;
+	for (const { c } of counted) c.tabItems = titled.slice(at, (at += c.tabItems.length));
 	// A tab with any pi counts as pi, and is named after it.
 	const label = (c: Classified) => {
 		const kinds = c.tabItems.map((i) => i.kind);

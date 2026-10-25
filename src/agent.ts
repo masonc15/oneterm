@@ -5,9 +5,9 @@
  * renames, and stashes clicked on the hub page.
  */
 
-import { statSync } from "node:fs";
 import { join } from "node:path";
 import { checkTabs } from "./closed.ts";
+import { withFrTitles } from "./fr.ts";
 import { move, remove, rename, restore } from "./restore.ts";
 import { notify, startNudge } from "./nudge.ts";
 import { countTabs, stash } from "./stash.ts";
@@ -29,7 +29,6 @@ interface Action {
 	name?: string;
 }
 
-const STASH_FILE = join(HOME, "stash.json");
 const HEARTBEAT_MS = 5 * 60_000;
 /** How often to look at Ghostty's tabs. Tabs closed this close to Ghostty quitting get saved too. */
 const WATCH_MS = 15_000;
@@ -45,11 +44,14 @@ function log(message: string) {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** The stash as the page shows it: newest group first, with display paths and restore commands. */
+/** The stash as the page shows it: newest group first, with fr's titles, display paths, and restore commands. */
 function pageGroups() {
-	return [...load().groups].reverse().map((g) => ({
+	const groups = [...load().groups].reverse();
+	const titled = withFrTitles(groups.flatMap((g) => g.items));
+	let at = 0;
+	return groups.map((g) => ({
 		...g,
-		items: g.items.map((i) => ({ ...i, cwdShort: displayCwd(i.cwd), restoreCommand: restoreCommand(i) ?? null })),
+		items: titled.slice(at, (at += g.items.length)).map((i) => ({ ...i, cwdShort: displayCwd(i.cwd), restoreCommand: restoreCommand(i) ?? null })),
 	}));
 }
 
@@ -92,17 +94,15 @@ export async function agent() {
 		return res.json();
 	};
 
-	// Push the stash when stash.json changes, and now and then regardless.
-	let pushedMtime = -1;
+	// Push the stash when what the page would show changes (the stash itself, or a
+	// title fr wrote since), and now and then regardless.
+	let pushed = "";
 	let pushedAt = 0;
 	const pushIfChanged = async () => {
-		let mtime = 0;
-		try {
-			mtime = statSync(STASH_FILE).mtimeMs;
-		} catch {}
-		if (mtime === pushedMtime && Date.now() - pushedAt < HEARTBEAT_MS) return;
-		await call("/api/agent/state", { method: "POST", body: JSON.stringify({ groups: pageGroups() }) });
-		pushedMtime = mtime;
+		const body = JSON.stringify({ groups: pageGroups() });
+		if (body === pushed && Date.now() - pushedAt < HEARTBEAT_MS) return;
+		await call("/api/agent/state", { method: "POST", body });
+		pushed = body;
 		pushedAt = Date.now();
 	};
 	(async () => {

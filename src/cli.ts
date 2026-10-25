@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { withFrTitles } from "./fr.ts";
 import { groupItemIds, move, remove, rename, restore } from "./restore.ts";
 import { reap, type Scope, stash } from "./stash.ts";
 import { displayCwd, findItem, type Item, load, restoreCommand } from "./store.ts";
@@ -38,6 +39,11 @@ function expandIds(ids: string[]) {
 
 const kindLabel: Record<Item["kind"], string> = { pi: "π", claude: "C", codex: "X", shell: "$", ssh: "⇄", command: "▸" };
 
+/** The stash newest group first, with fr's titles. */
+function titledGroups() {
+	return [...load().groups].reverse().map((g) => ({ ...g, items: withFrTitles(g.items) }));
+}
+
 function itemLine(item: Item, createdAt: string) {
 	const when = new Date(createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 	const flags = item.status === "pending" ? " (stashing…)" : item.interrupted ? " (stopped mid-task)" : "";
@@ -46,10 +52,10 @@ function itemLine(item: Item, createdAt: string) {
 }
 
 function printList(json: boolean) {
-	const stash = load();
-	if (json) return console.log(JSON.stringify(stash, null, 2));
-	if (!stash.groups.length) return console.log("Nothing stashed.");
-	for (const g of [...stash.groups].reverse()) {
+	if (json) return console.log(JSON.stringify(load(), null, 2));
+	const groups = titledGroups();
+	if (!groups.length) return console.log("Nothing stashed.");
+	for (const g of groups) {
 		const when = new Date(g.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 		console.log(`${g.id}  ${g.name ? `${g.name}  ` : ""}${when}${g.note ? ` — ${g.note}` : ""}`);
 		for (const i of g.items) {
@@ -62,7 +68,7 @@ function printList(json: boolean) {
 function preview(id: string) {
 	const found = findItem(load(), id);
 	if (!found) return;
-	const { item } = found;
+	const [item] = withFrTitles([found.item]);
 	const out = [item.title, displayCwd(item.cwd), ""];
 	const cmd = restoreCommand(item);
 	if (cmd) out.push(`$ ${cmd}`, "");
@@ -73,9 +79,7 @@ function preview(id: string) {
 }
 
 function pick(): string[] {
-	const stash = load();
-	const lines = [...stash.groups]
-		.reverse()
+	const lines = titledGroups()
 		.flatMap((g) => g.items.filter((i) => i.status === "stashed").map((i) => `${i.id}\t${itemLine(i, g.createdAt)}`));
 	if (!lines.length) {
 		console.log("Nothing stashed.");
@@ -103,7 +107,7 @@ function pick(): string[] {
 }
 
 function lines() {
-	for (const g of [...load().groups].reverse())
+	for (const g of titledGroups())
 		for (const i of g.items) if (i.status === "stashed") console.log(`${i.id}\t${itemLine(i, g.createdAt)}`);
 }
 
