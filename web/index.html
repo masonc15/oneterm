@@ -71,12 +71,13 @@
   .pop ul { list-style: none; margin: 0; padding: 0; }
   .pop li { display: flex; align-items: center; gap: 8px; padding: 3px 0; min-width: 0; }
   .pop li span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pop .k { flex: none; width: 20px; height: 18px; border-radius: 4px; display: grid; place-items: center;
-    font: 500 11px/1 var(--mono); background: #efeee9; color: var(--ink-2); }
-  .pop .k.pi { background: var(--accent-soft); color: var(--accent); font: 700 12px/1 var(--display); }
+  /* Icons sit straight on the page, with no box behind them; the box only reserves their space. */
+  .pop .k { flex: none; width: 20px; height: 18px; display: grid; place-items: center;
+    font: 500 12px/1 var(--mono); color: var(--ink-3); }
   /* Clawd's pixels land on whole pixels at 16px. */
   .pop .k svg, .kind.claude svg, .kind.pi svg { width: 16px; height: 16px; }
-  .pop .k.pi svg { width: 12px; height: 12px; }
+  /* pi's logo fills its whole square, so it reads as big as the others at a smaller size. */
+  .pop .k.pi svg { width: 13px; height: 13px; }
   .pop .k.codex svg { width: 17px; height: 17px; }
   .pop .reason { margin: 2px 0 2px; color: var(--warn); font-weight: 500; }
   .pop .reason + ul li { padding-left: 4px; color: var(--ink-2); }
@@ -141,14 +142,11 @@
   li.item:hover { background: #fafaf8; }
   .kind {
     grid-row: span 2; align-self: start; margin-top: 1px;
-    width: 26px; height: 22px; border-radius: 5px; display: grid; place-items: center;
-    font: 500 13px/1 var(--mono); background: #efeee9; color: var(--ink-2);
+    width: 26px; height: 22px; display: grid; place-items: center;
+    font: 500 15px/1 var(--mono); color: var(--ink-3);
   }
-  .kind.pi { background: var(--accent-soft); color: var(--accent); font-family: var(--display); font-weight: 700; font-size: 14px; }
   .kind.codex svg { width: 19px; height: 19px; }
   .kind.shell svg { width: 18px; height: 18px; }
-  .kind.claude, .pop .k.claude { background: #fbeee8; }
-  .kind.codex, .pop .k.codex { background: #eceefe; }
   .line1 { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
   .title { font-weight: 500; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   button.title:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
