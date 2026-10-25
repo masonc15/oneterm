@@ -23,6 +23,8 @@ It won't kill an agent in the middle of something. The tool call that's running 
 
 Restoring opens a new tab in the saved directory and runs `pi --session <file>`, `claude --resume <id>`, or `codex --no-daemon resume <id>`, over SSH if the session was remote. Terminals that shared a tab come back as splits.
 
+If you have [fast-resume](https://github.com/masonc15/fast-resume) (`fr`) installed, the page and `oneterm ls` show the titles it gives your sessions instead of the tab names, and under each one the one-line summary `fr --generate-titles` writes of where the session stands. oneterm looks them up with `fr --json --id`. Without `fr`, or for a session it hasn't summarized yet, you get the tab name and the agent's last reply.
+
 If Ghostty goes away with tabs still open, because it crashed, you quit it, or the Mac restarted, oneterm saves those tabs for you. The LaunchAgent looks at your tabs every 15 seconds, and once the Ghostty that had them is gone, it puts what it last saw into a new group and sends a notification, so you don't have to remember which sessions were open. Ghostty's `window-save-state` already reopens plain shells in their folders, so oneterm leaves those out. Anything it can't resume, like an editor or a dev server, is saved as its command line, which gets typed in but not run when you restore it. Closing a tab or a window yourself doesn't save anything.
 
 ## Usage
