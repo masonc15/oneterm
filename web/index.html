@@ -409,12 +409,31 @@ function whenText(g, withCount) {
   return `${withCount ? `${plural(g.items.length, "terminal")} · ` : ""}Stashed ${created.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · ${ago(g.createdAt)}`;
 }
 
-/** Edit the name in the heading itself: Enter or clicking away saves, Escape cancels, an empty name clears it. */
-function editName(g, heading) {
+/**
+ * Where in the heading's text a click landed, or null for the end. A click on the "…" of a
+ * cut-off name, or outside the text (say, on the pencil), counts as the end.
+ */
+function clickOffset(text, x, y) {
+  const r = text.getBoundingClientRect();
+  if (x < r.left || x > r.right) return null;
+  if (text.scrollWidth > text.clientWidth && x > r.right - 20) return null;
+  let node, offset;
+  if (document.caretPositionFromPoint) ({ offsetNode: node, offset } = document.caretPositionFromPoint(x, y) ?? {});
+  else ({ startContainer: node, startOffset: offset } = document.caretRangeFromPoint?.(x, y) ?? {});
+  return node && text.contains(node) && node.nodeType === Node.TEXT_NODE ? offset : null;
+}
+
+/**
+ * Edit the name in the heading itself: Enter or clicking away saves, Escape cancels, an empty
+ * name clears it. A click puts the caret where it landed; from the keyboard it goes to the end.
+ */
+function editName(g, heading, point) {
   if (editing === g.id) return;
   const text = heading.querySelector(".t");
   const before = groupName(g);
   const when = heading.parentElement.querySelector(".when");
+  // Measure before anything changes, while the text is laid out exactly as it was clicked.
+  const at = before && point ? clickOffset(text, point.x, point.y) : null;
   editing = g.id;
   heading.classList.add("editing");
   text.contentEditable = "plaintext-only";
@@ -430,9 +449,12 @@ function editName(g, heading) {
   }
   text.focus();
   const range = document.createRange();
-  range.selectNodeContents(text);
+  const node = text.firstChild;
+  if (node) range.setStart(node, at === null ? node.length : Math.min(at, node.length));
+  else range.setStart(text, 0);
   getSelection().removeAllRanges();
   getSelection().addRange(range);
+  if (at === null) text.scrollLeft = text.scrollWidth;
 
   let finished = false;
   const finish = (save, viaKey) => {
@@ -479,7 +501,7 @@ function nameButton(g) {
   const name = groupName(g);
   const heading = el("span", { class: "gname", "data-group": g.id, role: "button", tabindex: "0", title: name ? "Rename this group" : "Name this group" },
     el("span", { class: "t" }, name || plural(g.items.length, "terminal")));
-  heading.addEventListener("click", () => editName(g, heading));
+  heading.addEventListener("click", (e) => editName(g, heading, e.detail ? { x: e.clientX, y: e.clientY } : null));
   heading.addEventListener("keydown", (e) => {
     if (e.target === heading && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); editName(g, heading); }
   });
