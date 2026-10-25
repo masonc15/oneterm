@@ -141,12 +141,16 @@
   li.item.split { border-top-style: dashed; }
   li.item:hover { background: #fafaf8; }
   .kind {
-    grid-row: span 2; align-self: start; margin-top: 1px;
+    /* Centered on the whole row, title and reply line together. The 2px bottom margin
+       lifts it 1px, since the marks' drawings sit a touch low in their boxes. */
+    grid-row: span 2; align-self: center; margin-bottom: 2px;
     width: 26px; height: 22px; display: grid; place-items: center;
     font: 500 15px/1 var(--mono); color: var(--ink-3);
   }
   .kind.codex svg { width: 19px; height: 19px; }
   .kind.shell svg { width: 18px; height: 18px; }
+  /* Text glyphs sit on the font's baseline, a pixel lower than the drawn marks. */
+  .kind.ssh, .kind.command { padding-bottom: 2px; }
   .line1 { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
   .title { font-weight: 500; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   button.title:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
