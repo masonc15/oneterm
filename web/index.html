@@ -5,9 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>oneterm</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%221 1.5 32 32%22%3E%3Crect x=%221%22 y=%225%22 width=%2232%22 height=%2225%22 rx=%225%22 fill=%22%231c1d1f%22/%3E%3Crect x=%221%22 y=%225%22 width=%2213%22 height=%226%22 rx=%222%22 fill=%22%232b55c7%22/%3E%3Cpath d=%22M8 17l4 3.5-4 3.5%22 fill=%22none%22 stroke=%22%23fff%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M15 24h8%22 stroke=%22%23fff%22 stroke-width=%222%22 stroke-linecap=%22round%22/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oxygen:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- The fonts come with the page and are preloaded, so a reload never flashes a fallback font. -->
+<link rel="preload" href="fonts/plex-sans-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/oxygen-700.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+  @font-face { font-family: "IBM Plex Sans"; font-weight: 400 600; font-display: block; src: url(fonts/plex-sans-var.woff2) format("woff2"); }
+  @font-face { font-family: "IBM Plex Mono"; font-weight: 400; font-display: block; src: url(fonts/plex-mono-400.woff2) format("woff2"); }
+  @font-face { font-family: "IBM Plex Mono"; font-weight: 500; font-display: block; src: url(fonts/plex-mono-500.woff2) format("woff2"); }
+  @font-face { font-family: "Oxygen"; font-weight: 700; font-display: block; src: url(fonts/oxygen-700.woff2) format("woff2"); }
+</style>
 <style>
   :root {
     --paper: #f7f6f2;

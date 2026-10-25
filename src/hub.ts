@@ -12,7 +12,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 const PORT = Number(process.env.ONETERM_PORT || 7317);
 const DATA = process.env.ONETERM_DATA || "/data";
@@ -21,6 +21,8 @@ const HOSTS = new Set(
 	(process.env.ONETERM_HOSTS || `localhost:${PORT},127.0.0.1:${PORT}`).split(",").map((h) => h.trim().toLowerCase()).filter(Boolean),
 );
 const PAGE = process.env.ONETERM_PAGE || new URL("../web/index.html", import.meta.url).pathname;
+/** The page's fonts, served with it so a reload never flashes a fallback font. */
+const FONTS = join(dirname(PAGE), "fonts");
 const STATE_FILE = join(DATA, "hub.json");
 
 /** The Mac counts as online if it checked in this recently (its long poll lasts 25 s). */
@@ -276,6 +278,18 @@ async function handleAgent(req: IncomingMessage, res: ServerResponse, url: URL) 
 
 async function handlePage(req: IncomingMessage, res: ServerResponse, url: URL) {
 	if (req.method === "GET" && url.pathname === "/") return send(res, 200, readFileSync(PAGE, "utf8"), "text/html; charset=utf-8");
+	const font = req.method === "GET" && /^\/fonts\/([\w-]+\.woff2)$/.exec(url.pathname)?.[1];
+	if (font) {
+		let body: Buffer;
+		try {
+			body = readFileSync(join(FONTS, font));
+		} catch {
+			return send(res, 404, { error: "not found" });
+		}
+		// Browsers keep these for a year, so give a changed font a new file name.
+		res.writeHead(200, { "content-type": "font/woff2", "cache-control": "public, max-age=31536000, immutable", "x-content-type-options": "nosniff" });
+		return res.end(body);
+	}
 	if (req.method === "GET" && url.pathname === "/api/state") {
 		// Someone is looking: have the Mac recount its tabs for the stash buttons.
 		const stale = recount || !state.tabs || Date.now() - state.tabs.at > COUNT_EVERY_MS;
