@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="booting">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,6 +10,10 @@
 <link rel="preload" href="fonts/plex-mono-400.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/oxygen-700.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  /* Until the script has drawn the page, show nothing, so the browser keeps the previous
+     page on screen instead of painting a half-built one. Shown after 1 s regardless. */
+  html.booting body { visibility: hidden; animation: shown 0s 1s forwards; }
+  @keyframes shown { to { visibility: visible; } }
   @font-face { font-family: "IBM Plex Sans"; font-weight: 400 600; font-display: block; src: url(fonts/plex-sans-var.woff2) format("woff2"); }
   @font-face { font-family: "IBM Plex Mono"; font-weight: 400; font-display: block; src: url(fonts/plex-mono-400.woff2) format("woff2"); }
   @font-face { font-family: "IBM Plex Mono"; font-weight: 500; font-display: block; src: url(fonts/plex-mono-500.woff2) format("woff2"); }
@@ -770,14 +774,19 @@ document.addEventListener("keydown", (e) => {
 
 // Draw the last state seen before the first paint, so a reload shows the page as it
 // was instead of an empty one; the fetch below brings it up to date.
+// With nothing saved, as on a first visit, wait for the fetch instead.
+const booted = () => document.documentElement.classList.remove("booting");
+let drawn = false;
 try {
   const saved = JSON.parse(localStorage.getItem(SAVED) || "null");
   if (saved) {
     knownTabs = saved.knownTabs;
     render(JSON.parse(saved.text));
+    drawn = true;
   }
 } catch {}
-refresh(true);
+if (drawn) booted();
+refresh(true).finally(booted);
 setInterval(() => { if (!document.hidden) refresh(false); }, 2000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(false); });
 </script>
