@@ -121,8 +121,9 @@
   }
   .group-head:hover .gname:not(.editing)::before, .gname:focus-visible::before { opacity: 1; }
   .gname:hover::before { background: var(--accent); }
-  /* The placeholder follows the empty text, so the caret sits just before it and it takes only the room it needs. */
-  .gname.blank::after { content: "Name this group"; color: var(--ink-3); font-weight: 400; white-space: nowrap; pointer-events: none; }
+  /* An empty name shows the count it falls back to, greyed, in the same font and spot, so nothing jumps. */
+  /* The -1px cancels the 1px the empty text keeps so its caret isn't clipped. */
+  .gname.blank::after { content: attr(data-placeholder); color: var(--ink-3); white-space: nowrap; margin-left: -1px; }
   @media (max-width: 640px) { .gname::before { left: -15px; } }
   .when { color: var(--ink-3); font-size: 13.5px; }
   .note { flex-basis: 100%; color: var(--ink-2); font-style: italic; font-size: 14px; }
@@ -441,11 +442,11 @@ function editName(g, heading, point) {
   text.spellcheck = false;
   text.setAttribute("role", "textbox");
   text.setAttribute("aria-label", "Group name");
-  // An unnamed group starts blank, with its count moved next to it.
+  text.setAttribute("aria-placeholder", heading.dataset.placeholder);
+  // An unnamed group starts empty, its count greyed in place until you type.
   if (!before) {
     text.textContent = "";
     heading.classList.add("blank");
-    when.textContent = whenText(g, true);
   }
   text.focus();
   const range = document.createRange();
@@ -474,6 +475,7 @@ function editName(g, heading, point) {
     text.removeAttribute("contenteditable");
     text.removeAttribute("role");
     text.removeAttribute("aria-label");
+    text.removeAttribute("aria-placeholder");
     heading.classList.remove("editing", "blank");
     text.textContent = groupName(g) || plural(g.items.length, "terminal");
     text.scrollLeft = 0;
@@ -499,8 +501,15 @@ function editName(g, heading, point) {
 
 function nameButton(g) {
   const name = groupName(g);
-  const heading = el("span", { class: "gname", "data-group": g.id, role: "button", tabindex: "0", title: name ? "Rename this group" : "Name this group" },
-    el("span", { class: "t" }, name || plural(g.items.length, "terminal")));
+  const count = plural(g.items.length, "terminal");
+  const heading = el("span", { class: "gname", "data-group": g.id, "data-placeholder": count, role: "button", tabindex: "0",
+      title: name ? "Rename this group" : "Name this group" },
+    el("span", { class: "t" }, name || count));
+  // While editing, a press on the heading outside the text itself (the greyed count, the pencil)
+  // would move focus off the text and end the edit. Keep the edit going instead.
+  heading.addEventListener("mousedown", (e) => {
+    if (editing === g.id && !heading.querySelector(".t").contains(e.target)) e.preventDefault();
+  });
   heading.addEventListener("click", (e) => editName(g, heading, e.detail ? { x: e.clientX, y: e.clientY } : null));
   heading.addEventListener("keydown", (e) => {
     if (e.target === heading && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); editName(g, heading); }
