@@ -270,6 +270,12 @@ function mark(kind) {
 }
 const list = document.getElementById("list");
 let lastJson = "";
+/** Where the page keeps the last state it saw, to draw it at once on the next load. */
+const SAVED = "oneterm-state";
+/** The last tab count, kept for a while: the hub has none until the Mac recounts, which
+ * takes a moment after the page loads, and the buttons shouldn't blank meanwhile. */
+let knownTabs = null;
+const KEEP_TABS_MS = 10 * 60_000;
 
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -631,7 +637,9 @@ function render(state) {
     const g = state.groups.find((x) => x.id === id);
     if (!g || (g.name || "") === typed.name || Date.now() - typed.at > 30_000) typedNames.delete(id);
   }
-  renderMac(state.mac, state.tabs);
+  if (state.tabs) knownTabs = { tabs: state.tabs, at: Date.now() };
+  const tabs = state.tabs || (state.mac.online && knownTabs && Date.now() - knownTabs.at < KEEP_TABS_MS ? knownTabs.tabs : null);
+  renderMac(state.mac, tabs);
   const total = state.groups.reduce((n, g) => n + g.items.length, 0);
   document.getElementById("total").textContent = total ? `${plural(total, "terminal")} in ${plural(state.groups.length, "group")}` : "Nothing stashed";
   document.title = total ? `oneterm (${total})` : "oneterm";
@@ -668,6 +676,7 @@ async function refresh(force) {
     if (!force && text === lastJson) return;
     lastJson = text;
     render(JSON.parse(text));
+    try { localStorage.setItem(SAVED, JSON.stringify({ text, knownTabs })); } catch {}
   } catch {
     document.getElementById("total").textContent = "Can't reach the oneterm hub";
   }
@@ -759,6 +768,15 @@ document.addEventListener("keydown", (e) => {
   hidePop();
 });
 
+// Draw the last state seen before the first paint, so a reload shows the page as it
+// was instead of an empty one; the fetch below brings it up to date.
+try {
+  const saved = JSON.parse(localStorage.getItem(SAVED) || "null");
+  if (saved) {
+    knownTabs = saved.knownTabs;
+    render(JSON.parse(saved.text));
+  }
+} catch {}
 refresh(true);
 setInterval(() => { if (!document.hidden) refresh(false); }, 2000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(false); });
