@@ -80,6 +80,10 @@ export interface TabRow {
 	front: boolean;
 	/** fr's one line on where the session stands, if it has one. */
 	summary?: string;
+	/** Where it runs, as the page shows it: "~/workspace/x", or "host:/path" over SSH. */
+	cwd: string;
+	/** An agent in it is in the middle of a step; stashing waits for the step to end. */
+	working: boolean;
 }
 
 /** What "stash all" would do right now, and every open tab, from one look at Ghostty. */
@@ -104,11 +108,18 @@ export function countTabs(): { all: TabCounts; list: TabRow[]; open: number; cap
 		stash: counted.filter((x) => !x.c.skip).map((x) => label(x.c)),
 		kept: counted.filter((x) => x.c.skip).map((x) => ({ title: x.c.title, reason: x.c.skip! })),
 	};
+	const where = (tab: Tab, c: Classified) => {
+		const item = c.tabItems.find((i) => i.kind !== "shell") ?? c.tabItems[0];
+		if (item?.remote) return `${item.remote.host}:${item.cwd}`;
+		return displayCwd(item?.cwd ?? tab.terminals[0]?.cwd ?? "");
+	};
 	const list = counted.map(({ tab, c }): TabRow => ({
 		key: `${tab.id}/${tab.terminals[0]?.id}`,
 		...(c.skip ? { title: c.title, kind: "command" as const } : label(c)),
 		kept: c.skip,
 		front: tab.windowIndex === 0 && tab.selected,
+		cwd: where(tab, c),
+		working: c.working,
 	}));
 	return { all, list, open: tabs.length, cap: config().tabCap };
 }
@@ -139,6 +150,8 @@ interface Classified {
 	tabItems: Item[];
 	/** Why the tab stays open, if it does. */
 	skip: string | null;
+	/** An agent in it is in the middle of a step. */
+	working: boolean;
 }
 
 export interface ClassifyOptions {
@@ -157,9 +170,10 @@ export interface ClassifyOptions {
 export function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: ReturnType<typeof livePis>, opts: ClassifyOptions = {}): Classified {
 	const title = stripGlyph(tab.name);
 	const waiting = new Set(load().groups.flatMap((g) => g.items.filter((i) => i.status === "pending").map((i) => i.terminalId)));
-	if (!opts.record && tab.terminals.some((t) => waiting.has(t.id))) return { title, tabItems: [], skip: "already stashing" };
+	if (!opts.record && tab.terminals.some((t) => waiting.has(t.id))) return { title, tabItems: [], skip: "already stashing", working: false };
 	const tabItems: Item[] = [];
 	let skip: string | null = null;
+	let working = false;
 	for (const term of tab.terminals) {
 		const fg = foreground(term.tty, procs, live);
 		const base = { id: newId("i"), title, cwd: term.cwd, tabKey: tab.id, terminalId: term.id };
@@ -176,6 +190,7 @@ export function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: 
 			if (r.skip) cantStash(r.skip, fg.command);
 			else if (r.live) {
 				const a = r.live;
+				working ||= a.phase === "busy";
 				tabItems.push({ ...base, kind: a.kind, status: "pending", cwd: a.cwd,
 					title: a.name ?? `${a.kind} on ${r.remote.host}: ${a.cwd}`, name: a.name ?? undefined,
 					sessionId: a.sessionId, sessionFile: a.sessionFile ?? undefined, pid: a.pid, identity: a.identity, remote: r.remote, ...seen(a) });
@@ -184,6 +199,7 @@ export function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: 
 			else cantStash("SSH helper returned no terminal", fg.command);
 		}
 		else if (fg.kind === "pi" || fg.kind === "claude" || fg.kind === "codex") {
+			working ||= fg.live.phase === "busy";
 			tabItems.push({
 				...base,
 				kind: fg.kind,
@@ -208,7 +224,7 @@ export function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: 
 			skip = `running ${fg.command.split(/\s+/)[0].split("/").pop()}`;
 		}
 	}
-	return { title, tabItems, skip };
+	return { title, tabItems, skip, working };
 }
 
 /** Phases in which a session is waiting on the user: Claude Code's and Codex's hook phases, and pi's "prompt". */
