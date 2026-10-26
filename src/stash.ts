@@ -211,8 +211,8 @@ export function classifyTab(tab: Tab, procs: ReturnType<typeof snapshot>, live: 
 	return { title, tabItems, skip };
 }
 
-/** Hook phases in which a Claude Code or Codex session is waiting on the user. */
-const IDLE_PHASES = new Set(["idle", "resumed", "ended"]);
+/** Phases in which a session is waiting on the user: Claude Code's and Codex's hook phases, and pi's "prompt". */
+const IDLE_PHASES = new Set(["idle", "resumed", "ended", "prompt"]);
 
 export function stash(opts: StashOptions): StashResult {
 	ensureDirs();

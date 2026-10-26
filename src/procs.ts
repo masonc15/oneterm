@@ -21,8 +21,9 @@ export interface LivePi {
 	name: string | null;
 	kind?: "pi" | "claude" | "codex";
 	identity?: string;
-	/** Claude Code and Codex only, from their hooks: what the session is doing, and its last exchange. */
+	/** What the session is doing: "busy", "idle", and so on, from Claude Code's and Codex's hooks or pi's oneterm extension. */
 	phase?: string;
+	/** Claude Code and Codex only, from their hooks: the last exchange. */
 	lastUser?: string;
 	lastAssistant?: string;
 }

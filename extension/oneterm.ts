@@ -2,7 +2,8 @@
  * oneterm: lets the `oneterm` CLI stash this pi session and close its Ghostty tab.
  *
  * While pi runs, this extension keeps ~/.oneterm/live/<pid>.json up to date so the
- * CLI can map a terminal's foreground process to a session file. When the CLI drops
+ * CLI can map a terminal's foreground process to a session file, and show whether
+ * the session is working. When the CLI drops
  * ~/.oneterm/requests/<pid>.json, the session winds down at the next safe point:
  *
  *   idle                 stash right away
@@ -81,6 +82,8 @@ export default function oneterm(pi: ExtensionAPI) {
 	const requestName = `${process.pid}.json`;
 	let watcher: FSWatcher | null = null;
 	let promptOpen = false;
+	/** A run is going: from agent_start until agent_settled. */
+	let running = false;
 	let stash: { request: StashRequest; at: number; midTask: boolean; timer: NodeJS.Timeout } | null = null;
 	let finalized = false;
 
@@ -93,6 +96,8 @@ export default function oneterm(pi: ExtensionAPI) {
 			sessionFile: ctx.sessionManager.getSessionFile() ?? null,
 			cwd: ctx.sessionManager.getCwd(),
 			name: pi.getSessionName() ?? null,
+			// The same words Claude Code's and Codex's hooks use, plus "prompt" for a question waiting on you.
+			phase: !running ? "idle" : promptOpen ? "prompt" : "busy",
 			updatedAt: new Date().toISOString(),
 		});
 	};
@@ -159,16 +164,23 @@ export default function oneterm(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_info_changed", (_event, ctx) => register(ctx));
+	pi.on("agent_start", (_event, ctx) => {
+		running = true;
+		register(ctx);
+	});
 	pi.on("agent_settled", (_event, ctx) => {
+		running = false;
 		register(ctx);
 		if (stash) finalize(ctx);
 	});
 
-	pi.on("ui_prompt_start", () => {
+	pi.on("ui_prompt_start", (_event, ctx) => {
 		promptOpen = true;
+		register(ctx);
 	});
-	pi.on("ui_prompt_end", () => {
+	pi.on("ui_prompt_end", (_event, ctx) => {
 		promptOpen = false;
+		register(ctx);
 	});
 
 	// Tool calls that had not started when the stash arrived are skipped, and the run ends after this batch.
