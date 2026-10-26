@@ -16,7 +16,6 @@
   @keyframes shown { to { visibility: visible; } }
   @font-face { font-family: "IBM Plex Sans"; font-weight: 400 600; font-display: block; src: url(fonts/plex-sans-var.woff2) format("woff2"); }
   @font-face { font-family: "IBM Plex Mono"; font-weight: 400; font-display: block; src: url(fonts/plex-mono-400.woff2) format("woff2"); }
-  @font-face { font-family: "IBM Plex Mono"; font-weight: 500; font-display: block; src: url(fonts/plex-mono-500.woff2) format("woff2"); }
   @font-face { font-family: "Oxygen"; font-weight: 700; font-display: block; src: url(fonts/oxygen-700.woff2) format("woff2"); }
 </style>
 <style>
@@ -120,7 +119,7 @@
   /* Titles are never cut off. fr's are at most 35 characters, so a tab only
      wraps if its title is wider than the whole bar. */
   .tab .t { min-width: 0; line-height: 18px; overflow-wrap: anywhere; }
-  .tab .k { width: 16px; height: 18px; display: grid; place-items: center; flex: none; font: 500 13px/1 var(--mono); color: #8d9096; }
+  .tab .k { width: 16px; height: 18px; display: grid; place-items: center; flex: none; font: 13px/1 var(--mono); color: #8d9096; }
   .tab .k svg { width: 15px; height: 15px; }
   .tab .k.pi svg { width: 12px; height: 12px; }
   .tab .k.shell svg rect { fill: #8d9096; }
@@ -160,7 +159,7 @@
        lifts it 1px, since the marks' drawings sit a touch low in their boxes. */
     grid-row: span 2; align-self: center; margin-bottom: 2px;
     width: 26px; height: 22px; display: grid; place-items: center;
-    font: 500 15px/1 var(--mono); color: var(--ink-3);
+    font: 15px/1 var(--mono); color: var(--ink-3);
   }
   /* Clawd's pixels land on whole pixels at 16px. */
   .kind.claude svg, .kind.pi svg { width: 16px; height: 16px; }
