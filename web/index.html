@@ -63,59 +63,17 @@
   .btn.primary:hover { background: #33353a; }
   .btn[disabled] { opacity: .5; cursor: default; }
   .btn { display: inline-flex; align-items: center; gap: 8px; }
+  .btn.sm { height: 30px; padding: 0 12px; font-size: 13.5px; }
   .badge { min-width: 22px; height: 20px; padding: 0 6px; border-radius: 99px; display: inline-grid; place-items: center;
     font: 600 12px/1 var(--sans); background: #ecebe6; color: var(--ink-2); font-variant-numeric: tabular-nums; }
   .btn.primary .badge { background: rgba(255,255,255,.18); color: #fff; }
   .badge:empty { display: none; }
-  .tabs-note { font-size: 12.5px; color: var(--ink-3); margin-top: 6px; text-align: right; }
-  .tabs-note:empty { display: none; }
-  .stash-box { position: relative; }
-  .pop {
-    position: absolute; right: 0; top: calc(100% + 8px); z-index: 10; width: 320px;
-    background: var(--card); border: 1px solid var(--rule); border-radius: 10px;
-    box-shadow: 0 10px 30px rgba(28, 29, 31, .12), 0 2px 6px rgba(28, 29, 31, .06);
-    padding: 12px 14px 10px; font-size: 13.5px; display: none;
-  }
-  .pop.show { display: block; }
-  .pop h3 { margin: 0 0 6px; font: 600 11px/1.2 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
-  .pop h3 + ul { margin-bottom: 12px; }
-  .pop ul { list-style: none; margin: 0; padding: 0; }
-  .pop li { display: flex; align-items: center; gap: 8px; padding: 3px 0; min-width: 0; }
-  .pop li span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* Icons sit straight on the page, with no box behind them; the box only reserves their space. */
-  .pop .k { flex: none; width: 20px; height: 18px; display: grid; place-items: center;
-    font: 500 12px/1 var(--mono); color: var(--ink-3); }
-  /* Clawd's pixels land on whole pixels at 16px. */
-  .pop .k svg, .kind.claude svg, .kind.pi svg { width: 16px; height: 16px; }
-  /* pi's logo fills its whole square, so it reads as big as the others at a smaller size. */
-  .pop .k.pi svg { width: 13px; height: 13px; }
-  .pop .k.codex svg { width: 17px; height: 17px; }
-  .pop .reason { margin: 2px 0 2px; color: var(--warn); font-weight: 500; }
-  .pop .reason + ul li { padding-left: 4px; color: var(--ink-2); }
-  .pop .reason + ul li::before { content: "·"; color: var(--ink-3); }
-  .pop .fix { color: var(--ink-3); font-size: 12.5px; margin: 0 0 8px 4px; }
-  .pop .fix code { font: 12px var(--mono); background: #ecebe6; padding: 0 4px; border-radius: 3px; }
-  .pop > :last-child { margin-bottom: 0; }
-  .tabs-note { cursor: default; }
-  .picker { width: 380px; padding: 12px 6px 8px; }
-  .picker h3 { padding: 0 8px; }
-  .picker .row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; min-width: 0; }
-  .picker .row:hover { background: #f6f5f1; }
-  .picker .row.kept { cursor: default; color: var(--ink-3); }
-  .picker .row.kept:hover { background: none; }
-  .picker input { flex: none; margin: 0; width: 15px; height: 15px; accent-color: var(--accent); }
-  .picker .t { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .picker .front { flex: none; font-size: 11.5px; padding: 1px 7px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }
-  .picker .why { flex: none; max-width: 45%; font-size: 12px; color: var(--warn); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .picker .foot { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 10px 8px 2px; border-top: 1px solid var(--rule); font-size: 13.5px; }
-  .picker .foot .btn { margin-left: auto; }
   li.item[draggable="true"] { cursor: grab; }
   li.item.dragging { opacity: .4; }
   li.item.drop-before { box-shadow: inset 0 3px 0 -1px var(--accent); }
   ul.items.drop-end > li.item:last-child { box-shadow: inset 0 -3px 0 -1px var(--accent); }
   ul.items.drop-end:empty, section.group.drop-target ul.items { outline: 2px dashed var(--accent); outline-offset: 2px; }
   body.drag-active button.title { pointer-events: none; }
-  .tabs-note.over { color: var(--warn); font-weight: 500; }
 
   .group { margin-top: 30px; }
   .group-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 0 2px 8px; }
@@ -143,8 +101,54 @@
   .group-actions { margin-left: auto; display: flex; gap: 14px; font-size: 13.5px; }
   .link { color: var(--accent); }
   .link:hover { text-decoration: underline; }
+  .link.quiet { color: var(--ink-3); } .link.quiet:hover { color: var(--ink); }
   .link.danger { color: var(--ink-3); }
   .link.danger:hover { color: var(--danger); }
+
+  /* The shelf: Ghostty's tab bar, mirrored under the header. */
+  .shelf { margin-top: 22px; position: relative; }
+  .shelf-meta { display: flex; align-items: center; gap: 12px; min-height: 30px; padding: 0 2px 9px; font-size: 13.5px; color: var(--ink-2); }
+  .shelf-meta strong { font: 700 15px/1 var(--display); color: var(--ink); }
+  .shelf-meta .over { color: var(--warn); font-weight: 500; }
+  .shelf-meta .acts { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  /* Tabs are as wide as their titles and wrap like a tab bar that ran out of room.
+     The limit line always starts a new row, so tabs past your limit sit below it. */
+  .strip { display: flex; flex-wrap: wrap; gap: 4px; padding: 5px; background: #1f2023; border-radius: 11px; }
+  .tab { position: relative; flex: 0 0 auto; max-width: 100%; height: 32px; display: flex; align-items: center; gap: 7px;
+    padding: 0 12px 0 10px; white-space: nowrap; border-radius: 7px; background: #2b2c30; color: #c4c5c9; font-size: 13px; text-align: left; transition: background .1s; }
+  .tab:hover { background: #36383d; color: #fff; }
+  /* Titles are never cut off. fr's are at most 35 characters, so a tab only
+     wraps if its title is wider than the whole bar. */
+  .tab .t { min-width: 0; line-height: 18px; overflow-wrap: anywhere; }
+  .tab .k { width: 16px; height: 18px; display: grid; place-items: center; flex: none; font: 500 13px/1 var(--mono); color: #8d9096; }
+  .tab .k svg { width: 15px; height: 15px; }
+  .tab .k.pi svg { width: 12px; height: 12px; }
+  .tab .k.shell svg rect { fill: #8d9096; }
+  .tab.front { background: #3a3d44; color: #fff; }
+  .tab.front::before { content: ""; position: absolute; left: 9px; right: 9px; top: 0; height: 2px; border-radius: 0 0 2px 2px; background: #6f93ff; }
+  .tab.kept { color: #7d7f85; font-style: italic; cursor: default; }
+  .tab.on { background: #24336b; color: #fff; box-shadow: inset 0 0 0 1.5px #6f93ff; }
+  .tab .chk { display: none; width: 15px; height: 15px; border-radius: 4px; background: #6f93ff; color: #fff; font-size: 11px; line-height: 15px; text-align: center; flex: none; }
+  .tab.on .chk { display: block; } .tab.on .k { display: none; }
+  .tab .dot-work { flex: none; width: 6px; height: 6px; margin-left: 1px; border-radius: 50%; background: #3ea152; animation: pulse 1.4s ease-in-out infinite; }
+  .tab.over { background: #3a2e1c; color: #f0d9b0; }
+  .tab.over:hover { background: #45361f; }
+  .tab.over.on { background: #24336b; color: #fff; }
+  .strip[aria-busy="true"] .tab { opacity: .55; cursor: default; }
+  .slot { flex: 0 0 auto; height: 32px; padding: 0 12px; display: flex; align-items: center; border-radius: 7px;
+    border: 1.5px dashed #3a3c41; color: #6b6e74; font-size: 12.5px; white-space: nowrap; }
+  .limit { flex: 1 0 100%; display: flex; align-items: center; gap: 10px; margin: 3px 4px; font: 600 10.5px/1 var(--sans);
+    color: #e0a43a; letter-spacing: .05em; text-transform: uppercase; }
+  .limit::before, .limit::after { content: ""; flex: 1; height: 1px; background: #5c4520; }
+  .strip-off { padding: 6px 9px; line-height: 20px; color: #8d9096; font-size: 13.5px; }
+  /* A tab's tooltip, shown the moment you point at the tab, unlike the browser's slow title tooltip. */
+  .tip { position: absolute; z-index: 20; width: max-content; max-width: min(360px, 100%); padding: 9px 12px 10px; border-radius: 9px;
+    background: #2b2c30; border: 1px solid #45474d; box-shadow: 0 8px 24px rgba(0,0,0,.28); color: #c4c5c9; font-size: 13px; line-height: 1.45; pointer-events: none; }
+  .tip .tt { color: #fff; font-weight: 600; }
+  .tip .ts { margin-top: 3px; }
+  .tip .tk { margin-top: 3px; color: #e0a43a; }
+  .tip .tm { margin-top: 6px; font: 12px/1.3 var(--mono); color: #8d9096; }
+  .tip .tm .w { color: #7fd99a; font-family: var(--sans); }
 
   ul.items { list-style: none; margin: 0; padding: 4px 0; background: var(--card); border: 1px solid var(--rule); border-radius: 10px; }
   li.item { position: relative; display: grid; grid-template-columns: 28px 1fr auto; gap: 0 12px; padding: 9px 14px; }
@@ -158,6 +162,8 @@
     width: 26px; height: 22px; display: grid; place-items: center;
     font: 500 15px/1 var(--mono); color: var(--ink-3);
   }
+  /* Clawd's pixels land on whole pixels at 16px. */
+  .kind.claude svg, .kind.pi svg { width: 16px; height: 16px; }
   .kind.codex svg { width: 19px; height: 19px; }
   .kind.shell svg { width: 18px; height: 18px; }
   /* Text glyphs sit on the font's baseline, a pixel lower than the drawn marks. */
@@ -200,15 +206,15 @@
     transition: opacity .18s, transform .18s; pointer-events: none; max-width: 80vw;
   }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
-  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } .chip.wait::before { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } .chip.wait::before, .tab .dot-work { animation: none; } }
   /* The page reads best at 90% on a desktop; phones keep full size. */
   @media (min-width: 641px) { html { zoom: 0.9; } }
   @media (max-width: 640px) {
     .wrap { padding: 0 16px 64px; }
-    header { flex-wrap: wrap; } .actions { margin-left: 0; } .cwd { display: none; }
+    .cwd { display: none; }
     .mac { display: flex; margin-left: 0; margin-top: 2px; }
-    .pop { left: 0; right: auto; max-width: calc(100vw - 32px); }
-    .tabs-note { text-align: left; }
+    .shelf-meta { flex-wrap: wrap; } .shelf-meta .acts { margin-left: 0; width: 100%; }
+    .shelf-meta .pick-hint { display: none; }
     .line1 { flex-wrap: wrap; row-gap: 4px; }
     .title { white-space: normal; }
     .line2 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -239,20 +245,10 @@
         <div class="total"><span id="total">&nbsp;</span><span class="mac" id="mac"></span></div>
       </div>
     </div>
-    <div class="actions">
-      <div class="stash-box" id="stash-box">
-        <div style="display:flex; gap:8px">
-          <button class="btn" id="choose" aria-haspopup="dialog" aria-expanded="false" aria-controls="picker">Choose tabs…</button>
-          <button class="btn primary" id="stash-all" title="Stash every Ghostty tab">Stash all tabs <span class="badge"></span></button>
-        </div>
-        <div class="tabs-note" id="tabs-note"></div>
-        <div class="pop" id="pop" role="tooltip"></div>
-        <div class="pop picker" id="picker" role="dialog" aria-label="Choose tabs to stash"></div>
-      </div>
-    </div>
   </header>
+  <section class="shelf" id="shelf" aria-label="Open Ghostty tabs"></section>
   <main id="list"></main>
-  <p class="hint">Click a title to reopen it in Ghostty on your Mac, and it comes off this list. Click a group's heading to name it. Drag an entry to move it to another group. If the Mac's offline, your clicks wait until it's back.</p>
+  <p class="hint">Click tabs on the shelf to pick which to stash. Click a title to reopen it in Ghostty on your Mac, and it comes off this list. Click a group's heading to name it. Drag an entry to move it to another group. If the Mac's offline, your clicks wait until it's back.</p>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -566,74 +562,137 @@ function groupBlock(g) {
 }
 
 let lastTabs = null;
-let popFor = null;
+/** Whether the Mac is online, as of the last state. */
+let macOnline = false;
 const FIX = {
-  "pi needs /reload-all": ["Started before oneterm was installed.", "Run /reload-all in any pi tab."],
+  "pi needs /reload-all": "Started before oneterm was installed. Run /reload-all in any pi tab.",
 };
 
 function keptLabel(reason) {
   return reason.startsWith("running ") ? `Running ${reason.slice(8)}` : FIX[reason] ? "pi without oneterm" : reason;
 }
 
-function showPop(which) {
-  if (picking) return;
-  const pop = document.getElementById("pop");
-  const c = lastTabs?.[which];
-  popFor = which;
-  if (!c) return pop.classList.remove("show");
-  const nodes = [];
-  if (c.stash.length) {
-    nodes.push(el("h3", {}, `Will be stashed · ${c.stash.length}`),
-      el("ul", {}, c.stash.map((t) => el("li", {}, el("span", { class: `k ${t.kind}`, title: KIND_NAME[t.kind] }, mark(t.kind)), el("span", { title: t.summary ? `${t.title}\n${t.summary}` : t.title }, t.title)))));
-  } else {
-    nodes.push(el("h3", {}, "Nothing to stash"));
-  }
-  if (c.kept.length) {
-    nodes.push(el("h3", {}, `Stays open · ${c.kept.length}`));
-    const byReason = new Map();
-    for (const k of c.kept) byReason.set(k.reason, [...(byReason.get(k.reason) || []), k.title]);
-    for (const [reason, titles] of byReason) {
-      const fix = FIX[reason];
-      nodes.push(el("div", { class: "reason" }, keptLabel(reason)));
-      nodes.push(el("ul", {}, titles.map((t) => el("li", {}, el("span", { title: t }, t)))));
-      if (fix) {
-        const [why, how] = fix;
-        const cmd = how.match(/\/[\w-]+/)?.[0];
-        nodes.push(el("p", { class: "fix" }, `${why} `, cmd ? [how.split(cmd)[0], el("code", {}, cmd), how.split(cmd)[1]] : how));
-      }
-    }
-  }
-  pop.replaceChildren(...nodes);
-  pop.classList.add("show");
-}
-
-function hidePop() {
-  popFor = null;
-  document.getElementById("pop").classList.remove("show");
-}
+/** Keys of the tabs picked on the shelf. */
+const picked = new Set();
+/** The tab whose tooltip is showing, kept across redraws. */
+let tipFor = null;
+/** Set while the shelf is rebuilt, so the blur that causes doesn't hide the tooltip. */
+let redrawing = false;
+/** A stash from the shelf is under way. */
+let stashing = false;
 
 function renderMac(mac, tabs) {
   const node = document.getElementById("mac");
   node.className = `mac${mac.online ? " on" : ""}`;
   node.textContent = mac.online ? "Mac online" : mac.seenAt ? `Mac offline · seen ${ago(new Date(mac.seenAt).toISOString())}` : "Mac never connected";
-  const all = document.getElementById("stash-all");
-  const c = mac.online ? tabs?.all : null;
-  all.querySelector(".badge").textContent = c ? String(c.tabs) : "";
-  all.disabled = !mac.online || all.dataset.busy === "1" || (c && c.tabs === 0);
-  all.title = !mac.online ? "The Mac is offline" : !c ? all.dataset.title : "";
-  const choose = document.getElementById("choose");
-  choose.disabled = !mac.online || choose.dataset.busy === "1" || !tabs?.list?.length;
-  choose.title = !mac.online ? "The Mac is offline" : "Pick which Ghostty tabs to stash";
+  macOnline = mac.online;
   lastTabs = mac.online ? tabs : null;
-  if (popFor) showPop(popFor);
-  if (picking) renderPicker();
-  const kept = mac.online && tabs ? tabs.all.kept.length : 0;
-  const over = mac.online && tabs && tabs.cap > 0 && tabs.open > tabs.cap;
-  const note = document.getElementById("tabs-note");
-  note.classList.toggle("over", Boolean(over));
-  note.textContent = mac.online && tabs
-    ? `${plural(tabs.open, "tab")} open in Ghostty${over ? ` (limit is ${tabs.cap})` : ""}${kept ? ` · ${kept} can't be stashed` : ""}`
-    : "";
+  renderShelf();
+}
+
+/** `text` with a line-break chance after each slash, so a long path wraps at a folder.
+ * Hyphens become non-breaking ones, so "check-in" never splits across lines. */
+function breakable(text) {
+  const parts = text.replaceAll("-", "\u2011").split("/");
+  return parts.flatMap((p, i) => (i < parts.length - 1 ? [p + "/", el("wbr")] : [p]));
+}
+
+/** Show the tooltip for the tab with `key` under it, or hide it for null. */
+function showTip(key) {
+  tipFor = key;
+  document.getElementById("tab-tip")?.remove();
+  const t = key && lastTabs?.list?.find((o) => o.key === key);
+  const shelf = document.getElementById("shelf");
+  const tab = t && shelf.querySelector(`.tab[data-key="${CSS.escape(key)}"]`);
+  if (!tab) return;
+  const tip = el("div", { class: "tip", role: "tooltip", id: "tab-tip" },
+    el("div", { class: "tt" }, t.title),
+    t.summary ? el("div", { class: "ts" }, t.summary) : null,
+    t.kept ? el("div", { class: "tk" }, `${keptLabel(t.kept)}, so it stays open.${FIX[t.kept] ? ` ${FIX[t.kept]}` : ""}`) : null,
+    el("div", { class: "tm" }, t.cwd, t.front ? " · in front" : null,
+      t.working ? el("span", { class: "w" }, " · working, stashing waits for this step") : null));
+  shelf.append(tip);
+  tab.setAttribute("aria-describedby", "tab-tip");
+  // Under the tab, lined up with its left edge but kept inside the shelf.
+  tip.style.top = `${tab.offsetTop + tab.offsetHeight + 6}px`;
+  tip.style.left = `${Math.max(0, Math.min(tab.offsetLeft, shelf.clientWidth - tip.offsetWidth))}px`;
+}
+// A tap anywhere but a tab puts the tooltip away.
+document.addEventListener("pointerdown", (e) => { if (tipFor && !e.target.closest?.(".tab")) showTip(null); });
+
+function renderShelf() {
+  const shelf = document.getElementById("shelf");
+  const tabs = lastTabs;
+  const rows = tabs?.list || [];
+  // Tabs that closed or can't be stashed any more drop out of the picks.
+  for (const key of picked) if (!rows.some((t) => t.key === key && !t.kept)) picked.delete(key);
+  const focused = document.activeElement?.closest?.(".tab")?.dataset.key;
+  const cap = tabs?.cap || 0;
+  const over = cap > 0 && rows.length > cap ? rows.length - cap : 0;
+  const strip = [];
+  rows.forEach((t, i) => {
+    if (cap > 0 && i === cap) strip.push(el("div", { class: "limit" }, `Over your limit of ${cap}`));
+    const on = picked.has(t.key);
+    strip.push(el("button", {
+        class: `tab${t.front ? " front" : ""}${t.kept ? " kept" : ""}${on ? " on" : ""}${over && i >= cap ? " over" : ""}`,
+        "data-key": t.key, "aria-pressed": t.kept ? null : String(on), "aria-disabled": t.kept ? "true" : null,
+        onclick: () => {
+          if (t.kept || stashing) return;
+          on ? picked.delete(t.key) : picked.add(t.key);
+          renderShelf();
+        },
+        onmouseenter: () => showTip(t.key), onmouseleave: () => showTip(null),
+        onfocus: () => showTip(t.key), onblur: () => !redrawing && showTip(null),
+        onpointerdown: (e) => e.pointerType === "touch" && showTip(t.key) },
+      el("span", { class: "chk", "aria-hidden": "true" }, "✓"),
+      el("span", { class: `k ${t.kept ? "" : t.kind}`, title: t.kept ? undefined : KIND_NAME[t.kind] }, t.kept ? "▸" : mark(t.kind)),
+      el("span", { class: "t" }, breakable(t.title)),
+      t.working ? el("span", { class: "dot-work", "aria-label": "working" }) : null));
+  });
+  // Under the limit, one dashed tab says how much room is left.
+  const room = cap - rows.length;
+  if (tabs && cap > 0 && room > 0) strip.push(el("span", { class: "slot" }, `room for ${room} more`));
+  const n = picked.size;
+  const all = tabs?.all.tabs || 0;
+  const kept = rows.filter((t) => t.kept).length;
+  const status = !macOnline ? el("span", {}, "Mac offline")
+    : !tabs ? el("span", {}, "Looking at Ghostty…")
+    : el("span", { class: over ? "over" : "" },
+      `${plural(rows.length, "tab")} open${over ? ` · ${over} over your limit` : ""}${kept ? ` · ${kept} can't be stashed` : ""}`);
+  const acts = tabs ? el("span", { class: "acts" },
+    n ? [el("button", { class: "link quiet", disabled: stashing, onclick: () => { picked.clear(); renderShelf(); } }, "Clear"),
+      el("button", { class: "btn sm", disabled: stashing, onclick: () => stashShelf({ picked: [...picked] }) }, `Stash ${plural(n, "tab")}`)]
+      : rows.length ? el("span", { class: "when pick-hint" }, "Click tabs to pick some") : null,
+    el("button", { class: "btn primary sm", disabled: stashing || !all, onclick: () => stashShelf({ scope: "all" }) },
+      "Stash all", el("span", { class: "badge" }, String(all)))) : null;
+  redrawing = true;
+  try {
+    shelf.replaceChildren(
+      el("div", { class: "shelf-meta" }, el("strong", {}, "Ghostty"), status, acts),
+      el("div", { class: "strip", "aria-busy": stashing ? "true" : null },
+        !macOnline ? el("div", { class: "strip-off" }, "Can't see Ghostty while the Mac is offline. Reopens and deletes wait until it's back.")
+          : !tabs ? el("div", { class: "strip-off" }, "Counting your tabs…")
+          : rows.length ? strip : el("div", { class: "strip-off" }, "No tabs open in Ghostty.")));
+    if (focused) shelf.querySelector(`.tab[data-key="${CSS.escape(focused)}"]`)?.focus();
+  } finally {
+    redrawing = false;
+  }
+  showTip(tipFor);
+}
+
+async function stashShelf(data) {
+  stashing = true;
+  showTip(null);
+  renderShelf();
+  try {
+    const r = await post("/api/stash", data);
+    picked.clear();
+    toast(stashedText(r));
+  } catch (err) {
+    toast(`Failed: ${err.message}`);
+  }
+  stashing = false;
+  refresh(true);
 }
 
 function render(state) {
@@ -651,7 +710,7 @@ function render(state) {
     list.replaceChildren(el("div", { class: "empty" },
       el("h2", {}, "Nothing stashed"),
       el("p", {}, "When the tabs pile up, stash them here and come back to one at a time."),
-      el("p", {}, "Use the buttons above, ", el("code", {}, "/oneterm"), " in pi, or ", el("code", {}, "oneterm stash"), " in a shell.")));
+      el("p", {}, "Use the shelf above, ", el("code", {}, "/oneterm"), " in pi, or ", el("code", {}, "oneterm stash"), " in a shell.")));
     return;
   }
   const cutoff = Date.now() - OLDER_THAN_DAYS * 86400e3;
@@ -694,82 +753,8 @@ function stashedText(r) {
   return parts.join(" · ");
 }
 
-async function stashWith(btn, data) {
-  btn.disabled = true;
-  btn.dataset.busy = "1";
-  await act("/api/stash", data, stashedText);
-  delete btn.dataset.busy;
-  refresh(true);
-}
-
-/** Keys of the tabs checked in the picker, or null while it's closed. */
-let picking = null;
-
-function openPicker() {
-  if (!lastTabs?.list) return;
-  hidePop();
-  picking = new Set(lastTabs.list.filter((t) => !t.kept).map((t) => t.key));
-  document.getElementById("choose").setAttribute("aria-expanded", "true");
-  renderPicker();
-  document.querySelector("#picker input:not([disabled])")?.focus();
-}
-
-function closePicker() {
-  if (!picking) return;
-  picking = null;
-  document.getElementById("choose").setAttribute("aria-expanded", "false");
-  document.getElementById("picker").classList.remove("show");
-}
-
-function renderPicker() {
-  const picker = document.getElementById("picker");
-  const rows = lastTabs?.list;
-  if (!rows) return closePicker();
-  // Tabs that closed or became unstashable since the last look drop out; new ones start unchecked.
-  for (const key of picking) if (!rows.some((t) => t.key === key && !t.kept)) picking.delete(key);
-  const focused = document.activeElement?.closest?.("#picker [data-key]")?.dataset.key;
-  const open = rows.filter((t) => !t.kept);
-  const n = picking.size;
-  const row = (t) => el("label", { class: `row${t.kept ? " kept" : ""}`, "data-key": t.key, title: t.kept ? `${t.title}: stays open (${keptLabel(t.kept)})` : t.summary ? `${t.title}\n${t.summary}` : t.title },
-    el("input", { type: "checkbox", checked: picking.has(t.key), disabled: Boolean(t.kept),
-      onchange: (e) => { e.target.checked ? picking.add(t.key) : picking.delete(t.key); renderPicker(); } }),
-    el("span", { class: `k ${t.kept ? "" : t.kind}`, title: t.kept ? undefined : KIND_NAME[t.kind] }, t.kept ? "–" : mark(t.kind)),
-    el("span", { class: "t" }, t.title),
-    t.front ? el("span", { class: "front", title: "The selected tab in Ghostty's front window" }, "in front") : null,
-    t.kept ? el("span", { class: "why" }, keptLabel(t.kept)) : null);
-  const every = open.length > 0 && n === open.length;
-  const go = el("button", { class: "btn primary", disabled: n === 0,
-    onclick: () => { const picked = [...picking]; closePicker(); stashWith(document.getElementById("choose"), { picked }); } },
-    n ? `Stash ${plural(n, "tab")}` : "Stash");
-  picker.replaceChildren(
-    el("h3", {}, `Open in Ghostty · ${rows.length}`),
-    ...rows.map(row),
-    el("div", { class: "foot" },
-      open.length > 1 ? el("button", { class: "link", onclick: () => { picking = new Set(every ? [] : open.map((t) => t.key)); renderPicker(); } },
-        every ? "Select none" : "Select all") : null,
-      go));
-  picker.classList.add("show");
-  if (focused) picker.querySelector(`[data-key="${CSS.escape(focused)}"] input`)?.focus();
-}
-
-const stashAll = document.getElementById("stash-all");
-stashAll.addEventListener("click", () => stashWith(stashAll, { scope: "all" }));
-stashAll.dataset.title = stashAll.title;
-stashAll.setAttribute("aria-describedby", "pop");
-stashAll.addEventListener("mouseenter", () => showPop("all"));
-stashAll.addEventListener("focus", () => showPop("all"));
-stashAll.addEventListener("blur", hidePop);
-stashAll.addEventListener("click", hidePop);
-document.getElementById("choose").addEventListener("click", () => (picking ? closePicker() : openPicker()));
-// composedPath, not contains: a click that re-renders the picker has already detached its target.
-document.addEventListener("click", (e) => { if (picking && !e.composedPath().some((n) => n.id === "stash-box")) closePicker(); });
-// Over the gap or the note, keep showing whichever popover is open; on touch, tap the note.
-document.getElementById("stash-box").addEventListener("mouseleave", hidePop);
-document.getElementById("tabs-note").addEventListener("click", () => (popFor ? hidePop() : showPop("all")));
 document.addEventListener("keydown", (e) => {
-  if (e.key !== "Escape") return;
-  if (picking) { closePicker(); document.getElementById("choose").focus(); }
-  hidePop();
+  if (e.key === "Escape" && tipFor) showTip(null);
 });
 
 // Draw the last state seen before the first paint, so a reload shows the page as it
