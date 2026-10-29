@@ -134,8 +134,6 @@
   .tab.over:hover { background: #45361f; }
   .tab.over.on { background: #24336b; color: #fff; }
   .strip[aria-busy="true"] .tab { opacity: .55; cursor: default; }
-  .slot { flex: 0 0 auto; height: 32px; padding: 0 12px; display: flex; align-items: center; border-radius: 7px;
-    border: 1.5px dashed #3a3c41; color: #6b6e74; font-size: 12.5px; white-space: nowrap; }
   .limit { flex: 1 0 100%; display: flex; align-items: center; gap: 10px; margin: 3px 4px; font: 600 10.5px/1 var(--sans);
     color: #e0a43a; letter-spacing: .05em; text-transform: uppercase; }
   .limit::before, .limit::after { content: ""; flex: 1; height: 1px; background: #5c4520; }
@@ -648,9 +646,6 @@ function renderShelf() {
       el("span", { class: "t" }, breakable(t.title)),
       t.working ? el("span", { class: "dot-work", "aria-label": "working" }) : null));
   });
-  // Under the limit, one dashed tab says how much room is left.
-  const room = cap - rows.length;
-  if (tabs && cap > 0 && room > 0) strip.push(el("span", { class: "slot" }, `room for ${room} more`));
   const n = picked.size;
   const all = tabs?.all.tabs || 0;
   const kept = rows.filter((t) => t.kept).length;
