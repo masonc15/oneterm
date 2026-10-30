@@ -82,6 +82,13 @@ function programName(args: string) {
 	return first.replace(/^-/, "").split("/").pop() ?? "";
 }
 
+/** `claude -p`, `pi -p` and `codex exec` are one-shot runs another program started, not sessions to stash. */
+function headless(args: string) {
+	const words = args.split(/\s+/);
+	if (programName(args) === "codex") return words[1] === "exec" || words[1] === "e";
+	return words.includes("-p") || words.includes("--print");
+}
+
 /** What is in the foreground on a tty: an idle shell, a pi session, ssh, or some other program. */
 export function foreground(tty: string, procs: Proc[], live: Map<number, LivePi>): Foreground {
 	const name = tty.replace(/^\/dev\//, "");
@@ -100,8 +107,9 @@ export function foreground(tty: string, procs: Proc[], live: Map<number, LivePi>
 	const leader = group.find((p) => p.pid === tpgid) ?? group[0];
 	const program = programName(leader.args);
 	if (SHELLS.has(program)) return { kind: "shell" };
-	if (program === "pi" || group.some((p) => programName(p.args) === "pi")) return { kind: "pi-unregistered", pid: leader.pid, command: leader.args };
-	const native = group.map((p) => programName(p.args)).find((name) => name === "claude" || name === "claude.exe" || name === "codex");
+	const sessions = group.filter((p) => !headless(p.args));
+	if (sessions.some((p) => programName(p.args) === "pi")) return { kind: "pi-unregistered", pid: leader.pid, command: leader.args };
+	const native = sessions.map((p) => programName(p.args)).find((name) => name === "claude" || name === "claude.exe" || name === "codex");
 	if (native) return { kind: "agent-unregistered", agent: native === "codex" ? "codex" : "claude", command: leader.args };
 	if (program === "ssh" || program === "mosh") return { kind: "ssh", command: leader.args, pid: leader.pid };
 	return { kind: "command", command: leader.args, pid: leader.pid };

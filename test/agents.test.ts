@@ -36,3 +36,12 @@ test("registered foreground keeps its agent kind", () => {
 	assert.equal(foreground("/dev/ttys999", [{ ...p, args: "ssh devbox" }], new Map()).kind, "ssh");
 	assert.equal(config().remoteHosts[0], "devbox");
 });
+test("a headless agent run by another program is just that program", () => {
+	const tool = { pid: 200, ppid: 1, pgid: 200, tpgid: 200, tty: "ttys999", args: "bun /bin/engineering-notebook summarize --all" };
+	for (const args of ["claude --safe-mode -p --model x", "codex exec do it", "pi --print hi"]) {
+		const child = { ...tool, pid: 201, ppid: 200, args };
+		assert.equal(foreground("/dev/ttys999", [tool, child], new Map()).kind, "command");
+	}
+	const session = { ...tool, pid: 201, ppid: 200, args: "claude --resume x" };
+	assert.equal(foreground("/dev/ttys999", [tool, session], new Map()).kind, "agent-unregistered");
+});
